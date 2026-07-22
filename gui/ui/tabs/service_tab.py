@@ -1,7 +1,8 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
     QPushButton, QTextEdit, QLabel, QMessageBox,
-    QProgressBar, QCheckBox,
+    QProgressBar, QCheckBox, QScrollArea, QFrame,
+    QGridLayout,
 )
 from PyQt6.QtCore import pyqtSignal, Qt, QThread
 
@@ -18,7 +19,7 @@ class DownloadThread(QThread):
         def callback(msg):
             self.progress.emit(msg)
 
-        result = self.platform.download_zapret(callback=callback)
+        result = self.platform.install_zapret(callback=callback)
         self.finished.emit(result)
 
 
@@ -38,8 +39,17 @@ class ServiceTab(QWidget):
         self._strategy_provider = provider
 
     def _build_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setSpacing(12)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        outer.addWidget(scroll)
+
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setSpacing(10)
 
         header = QLabel("Service & Updates")
         header.setObjectName("headerLabel")
@@ -54,17 +64,19 @@ class ServiceTab(QWidget):
         self._build_diagnostics_ui(layout)
         layout.addStretch()
 
+        scroll.setWidget(container)
+
     def _build_linux_ui(self, layout):
         engine_group = QGroupBox("Zapret Engine")
         eg_layout = QVBoxLayout(engine_group)
 
-        info = QLabel("Download the zapret engine (nfqws) from GitHub")
+        info = QLabel("Install zapret v72.13 to /opt/zapret from GitHub")
         info.setWordWrap(True)
         eg_layout.addWidget(info)
 
         btn_row = QHBoxLayout()
-        self.btn_download = QPushButton("Download / Update")
-        self.btn_download.setMinimumHeight(36)
+        self.btn_download = QPushButton("Install / Update")
+        self.btn_download.setMinimumHeight(32)
         self.btn_download.clicked.connect(self._download_zapret)
         btn_row.addWidget(self.btn_download)
         eg_layout.addLayout(btn_row)
@@ -85,31 +97,32 @@ class ServiceTab(QWidget):
         info2 = QLabel("Create and manage a systemd service for auto-start on boot")
         sv_layout.addWidget(info2)
 
-        btn_row2 = QHBoxLayout()
+        svc_grid = QGridLayout()
+        svc_grid.setSpacing(6)
+
         self.btn_create_svc = QPushButton("Create Service")
-        self.btn_create_svc.setMinimumHeight(36)
+        self.btn_create_svc.setMinimumHeight(32)
         self.btn_create_svc.clicked.connect(self._create_service)
-        btn_row2.addWidget(self.btn_create_svc)
+        svc_grid.addWidget(self.btn_create_svc, 0, 0)
 
         self.btn_remove_svc = QPushButton("Remove Service")
         self.btn_remove_svc.setObjectName("stopBtn")
-        self.btn_remove_svc.setMinimumHeight(36)
+        self.btn_remove_svc.setMinimumHeight(32)
         self.btn_remove_svc.clicked.connect(self._remove_service)
-        btn_row2.addWidget(self.btn_remove_svc)
-        sv_layout.addLayout(btn_row2)
+        svc_grid.addWidget(self.btn_remove_svc, 0, 1)
 
-        btn_row3 = QHBoxLayout()
         self.btn_start_svc = QPushButton("Start Service")
-        self.btn_start_svc.setMinimumHeight(36)
+        self.btn_start_svc.setMinimumHeight(32)
         self.btn_start_svc.clicked.connect(self._start_service)
-        btn_row3.addWidget(self.btn_start_svc)
+        svc_grid.addWidget(self.btn_start_svc, 1, 0)
 
         self.btn_stop_svc = QPushButton("Stop Service")
         self.btn_stop_svc.setObjectName("stopBtn")
-        self.btn_stop_svc.setMinimumHeight(36)
+        self.btn_stop_svc.setMinimumHeight(32)
         self.btn_stop_svc.clicked.connect(self._stop_service)
-        btn_row3.addWidget(self.btn_stop_svc)
-        sv_layout.addLayout(btn_row3)
+        svc_grid.addWidget(self.btn_stop_svc, 1, 1)
+
+        sv_layout.addLayout(svc_grid)
 
         btn_row4 = QHBoxLayout()
         self.chk_autostart = QCheckBox("Enable on boot (auto-start)")
@@ -130,20 +143,45 @@ class ServiceTab(QWidget):
         info3 = QLabel("Apply firewall rules to redirect traffic through nfqws")
         nf_layout.addWidget(info3)
 
-        btn_row5 = QHBoxLayout()
+        fw_grid = QGridLayout()
+        fw_grid.setSpacing(6)
+
         self.btn_apply_rules = QPushButton("Apply Rules")
-        self.btn_apply_rules.setMinimumHeight(36)
+        self.btn_apply_rules.setMinimumHeight(32)
         self.btn_apply_rules.clicked.connect(self._apply_rules)
-        btn_row5.addWidget(self.btn_apply_rules)
+        fw_grid.addWidget(self.btn_apply_rules, 0, 0)
 
         self.btn_remove_rules = QPushButton("Remove Rules")
         self.btn_remove_rules.setObjectName("stopBtn")
-        self.btn_remove_rules.setMinimumHeight(36)
+        self.btn_remove_rules.setMinimumHeight(32)
         self.btn_remove_rules.clicked.connect(self._remove_rules)
-        btn_row5.addWidget(self.btn_remove_rules)
-        nf_layout.addLayout(btn_row5)
+        fw_grid.addWidget(self.btn_remove_rules, 0, 1)
+
+        nf_layout.addLayout(fw_grid)
 
         layout.addWidget(nftables_group)
+
+        desktop_group = QGroupBox("App Menu Entry")
+        dt_layout = QVBoxLayout(desktop_group)
+
+        info4 = QLabel("Add/remove Mangopret from your application menu")
+        dt_layout.addWidget(info4)
+
+        dt_row = QHBoxLayout()
+        self.btn_install_desktop = QPushButton("Install to Menu")
+        self.btn_install_desktop.setMinimumHeight(32)
+        self.btn_install_desktop.clicked.connect(self._install_desktop_entry)
+        dt_row.addWidget(self.btn_install_desktop)
+
+        self.btn_remove_desktop = QPushButton("Remove from Menu")
+        self.btn_remove_desktop.setObjectName("stopBtn")
+        self.btn_remove_desktop.setMinimumHeight(32)
+        self.btn_remove_desktop.clicked.connect(self._remove_desktop_entry)
+        dt_row.addWidget(self.btn_remove_desktop)
+        dt_row.addStretch()
+        dt_layout.addLayout(dt_row)
+
+        layout.addWidget(desktop_group)
 
     def _build_windows_ui(self, layout):
         service_group = QGroupBox("Windows Service")
@@ -152,37 +190,38 @@ class ServiceTab(QWidget):
         info = QLabel("Manage the Windows service (auto-start on boot)")
         sv_layout.addWidget(info)
 
-        btn_row = QHBoxLayout()
+        svc_grid = QGridLayout()
+        svc_grid.setSpacing(6)
+
         self.btn_install_svc = QPushButton("Install Service")
-        self.btn_install_svc.setMinimumHeight(36)
+        self.btn_install_svc.setMinimumHeight(32)
         self.btn_install_svc.clicked.connect(self._install_service)
-        btn_row.addWidget(self.btn_install_svc)
+        svc_grid.addWidget(self.btn_install_svc, 0, 0)
 
         self.btn_remove_svc = QPushButton("Remove Service")
         self.btn_remove_svc.setObjectName("stopBtn")
-        self.btn_remove_svc.setMinimumHeight(36)
+        self.btn_remove_svc.setMinimumHeight(32)
         self.btn_remove_svc.clicked.connect(self._remove_service)
-        btn_row.addWidget(self.btn_remove_svc)
-        sv_layout.addLayout(btn_row)
+        svc_grid.addWidget(self.btn_remove_svc, 0, 1)
 
-        btn_row2 = QHBoxLayout()
         self.btn_start_svc = QPushButton("Start Service")
-        self.btn_start_svc.setMinimumHeight(36)
+        self.btn_start_svc.setMinimumHeight(32)
         self.btn_start_svc.clicked.connect(self._start_service)
-        btn_row2.addWidget(self.btn_start_svc)
+        svc_grid.addWidget(self.btn_start_svc, 1, 0)
 
         self.btn_stop_svc = QPushButton("Stop Service")
         self.btn_stop_svc.setObjectName("stopBtn")
-        self.btn_stop_svc.setMinimumHeight(36)
+        self.btn_stop_svc.setMinimumHeight(32)
         self.btn_stop_svc.clicked.connect(self._stop_service)
-        btn_row2.addWidget(self.btn_stop_svc)
+        svc_grid.addWidget(self.btn_stop_svc, 1, 1)
 
         self.btn_check_svc = QPushButton("Check Status")
         self.btn_check_svc.setObjectName("secondaryBtn")
-        self.btn_check_svc.setMinimumHeight(36)
+        self.btn_check_svc.setMinimumHeight(32)
         self.btn_check_svc.clicked.connect(self._check_service)
-        btn_row2.addWidget(self.btn_check_svc)
-        sv_layout.addLayout(btn_row2)
+        svc_grid.addWidget(self.btn_check_svc, 1, 2)
+
+        sv_layout.addLayout(svc_grid)
 
         self.svc_status_label = QLabel("Status: checking...")
         self.svc_status_label.setObjectName("subHeaderLabel")
@@ -194,20 +233,26 @@ class ServiceTab(QWidget):
         updates_group = QGroupBox("Updates")
         up_layout = QVBoxLayout(updates_group)
 
-        btn_row = QHBoxLayout()
+        up_grid = QGridLayout()
+        up_grid.setSpacing(6)
+
         btn_ipset = QPushButton("Update IPSet List")
+        btn_ipset.setMinimumHeight(28)
         btn_ipset.clicked.connect(self._update_ipset)
-        btn_row.addWidget(btn_ipset)
+        up_grid.addWidget(btn_ipset, 0, 0)
 
         btn_hosts = QPushButton("Update Hosts File")
+        btn_hosts.setMinimumHeight(28)
         btn_hosts.clicked.connect(self._update_hosts)
-        btn_row.addWidget(btn_hosts)
+        up_grid.addWidget(btn_hosts, 0, 1)
 
         btn_updates = QPushButton("Check for Updates")
         btn_updates.setObjectName("secondaryBtn")
+        btn_updates.setMinimumHeight(28)
         btn_updates.clicked.connect(self._check_updates)
-        btn_row.addWidget(btn_updates)
-        up_layout.addLayout(btn_row)
+        up_grid.addWidget(btn_updates, 0, 2)
+
+        up_layout.addLayout(up_grid)
 
         layout.addWidget(updates_group)
 
@@ -216,13 +261,14 @@ class ServiceTab(QWidget):
         dg_layout = QVBoxLayout(diag_group)
 
         btn_diag = QPushButton("Run Diagnostics")
+        btn_diag.setMinimumHeight(28)
         btn_diag.clicked.connect(self._run_diagnostics)
         dg_layout.addWidget(btn_diag)
 
         self.diag_text = QTextEdit()
         self.diag_text.setReadOnly(True)
         self.diag_text.setFontFamily("Consolas")
-        self.diag_text.setMaximumHeight(200)
+        self.diag_text.setMaximumHeight(180)
         dg_layout.addWidget(self.diag_text)
 
         layout.addWidget(diag_group)
@@ -257,11 +303,11 @@ class ServiceTab(QWidget):
         self.btn_download.setEnabled(True)
         self.progress_bar.setVisible(False)
         if success:
-            self.download_status.setText("Engine downloaded successfully!")
-            self.log_signal.emit("Engine downloaded successfully")
+            self.download_status.setText("Zapret installed / updated successfully!")
+            self.log_signal.emit("Zapret installed / updated successfully")
         else:
-            self.download_status.setText("Download failed - check log")
-            self.log_signal.emit("Engine download failed")
+            self.download_status.setText("Installation failed - check log")
+            self.log_signal.emit("Zapret installation failed")
 
     def _create_service(self):
         if not self.platform.is_linux:
@@ -300,14 +346,15 @@ class ServiceTab(QWidget):
 
     def _remove_windows_service(self):
         import subprocess
+        _CREATE_NO_WINDOW = 0x08000000
         for svc in ["zapret", "WinDivert"]:
             subprocess.run(
                 ["net", "stop", svc], capture_output=True,
-                creationflags=subprocess.CREATE_NO_WINDOW,
+                creationflags=_CREATE_NO_WINDOW,
             )
             subprocess.run(
                 ["sc", "delete", svc], capture_output=True,
-                creationflags=subprocess.CREATE_NO_WINDOW,
+                creationflags=_CREATE_NO_WINDOW,
             )
         self.platform.kill_all()
         self.log_signal.emit("Windows services removed")
@@ -354,6 +401,7 @@ class ServiceTab(QWidget):
         if not self.platform.is_windows:
             return
         import subprocess
+        _CREATE_NO_WINDOW = 0x08000000
 
         bin_path = str(self.platform.binary)
         cmd_args = ""
@@ -372,14 +420,14 @@ class ServiceTab(QWidget):
                     ["sc", "create", "zapret", "binPath=", sc_cmd,
                      "DisplayName=", "zapret", "start=", "auto"],
                     capture_output=True, text=True, timeout=10,
-                    creationflags=subprocess.CREATE_NO_WINDOW,
+                    creationflags=_CREATE_NO_WINDOW,
                 )
             else:
                 r = subprocess.run(
                     ["sc", "create", "zapret", "binPath=", f'"{bin_path}"',
                      "DisplayName=", "zapret", "start=", "auto"],
                     capture_output=True, text=True, timeout=10,
-                    creationflags=subprocess.CREATE_NO_WINDOW,
+                    creationflags=_CREATE_NO_WINDOW,
                 )
             self.diag_text.append(r.stdout)
             if r.stderr:
@@ -439,6 +487,23 @@ class ServiceTab(QWidget):
             self.log_signal.emit("iptables rules removed")
         else:
             self.diag_text.append("Failed to remove iptables rules")
+
+    def _install_desktop_entry(self):
+        ok, msg = self.platform.create_desktop_entry()
+        if ok:
+            self.diag_text.append(f"Desktop entry installed: {msg}")
+            self.log_signal.emit(f"Desktop entry installed: {msg}")
+        else:
+            self.diag_text.append(f"Failed to install desktop entry: {msg}")
+            self.log_signal.emit(f"Failed: {msg}")
+
+    def _remove_desktop_entry(self):
+        ok, msg = self.platform.remove_desktop_entry()
+        if ok:
+            self.diag_text.append("Desktop entry removed")
+            self.log_signal.emit("Desktop entry removed")
+        else:
+            self.diag_text.append(f"Failed: {msg}")
 
     def _update_ipset(self):
         def callback(msg):

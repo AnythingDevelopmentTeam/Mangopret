@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
     QListWidget, QTextEdit, QPushButton, QLabel,
-    QMessageBox, QInputDialog,
+    QMessageBox, QInputDialog, QScrollArea, QFrame,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 
@@ -18,7 +18,7 @@ class ListsTab(QWidget):
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
-        layout.setSpacing(8)
+        layout.setContentsMargins(0, 0, 0, 0)
 
         header = QLabel("Domain & IP Lists")
         header.setObjectName("headerLabel")
@@ -41,16 +41,19 @@ class ListsTab(QWidget):
 
         btn_row = QHBoxLayout()
         btn_save = QPushButton("Save")
+        btn_save.setMinimumHeight(28)
         btn_save.clicked.connect(self._save_content)
         btn_row.addWidget(btn_save)
 
         btn_add = QPushButton("Add Entry")
         btn_add.setObjectName("secondaryBtn")
+        btn_add.setMinimumHeight(28)
         btn_add.clicked.connect(self._add_entry)
         btn_row.addWidget(btn_add)
 
         btn_remove = QPushButton("Remove Line")
         btn_remove.setObjectName("secondaryBtn")
+        btn_remove.setMinimumHeight(28)
         btn_remove.clicked.connect(self._remove_line)
         btn_row.addWidget(btn_remove)
 
@@ -71,7 +74,7 @@ class ListsTab(QWidget):
         right_layout.addWidget(self.editor)
 
         splitter.addWidget(right_widget)
-        splitter.setSizes([250, 500])
+        splitter.setSizes([200, 400])
 
         layout.addWidget(splitter, 1)
 

@@ -1,4 +1,5 @@
 import json
+import os
 import re
 from pathlib import Path
 from typing import Optional
@@ -137,10 +138,19 @@ class Strategy:
 
     @staticmethod
     def _resolve_path(value: str, bin_dir: str, lists_dir: str) -> str:
+        zapret_bin = "/opt/zapret/bin/"
         value = value.replace("{bin}", bin_dir.rstrip("\\/") + "/")
         value = value.replace("{lists}", lists_dir.rstrip("\\/") + "/")
         value = value.replace("{game_filter_tcp}", "")
         value = value.replace("{game_filter_udp}", "")
+
+        if value.startswith(zapret_bin):
+            local = bin_dir.rstrip("\\/") + "/" + value[len(zapret_bin):]
+            if not os.path.isfile(local) and not os.path.isfile(value):
+                pass
+            elif os.path.isfile(local) and not os.path.isfile(value):
+                value = local
+
         return value
 
 

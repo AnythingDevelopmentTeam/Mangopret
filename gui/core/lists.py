@@ -128,11 +128,12 @@ class ListManager:
         results = []
 
         if is_windows:
+            _CNO = 0x08000000
             try:
                 r = subprocess.run(
                     ["sc", "query", "BFE"],
                     capture_output=True, text=True, timeout=10,
-                    creationflags=subprocess.CREATE_NO_WINDOW,
+                    creationflags=_CNO,
                 )
                 if "RUNNING" in r.stdout:
                     results.append("[OK] Base Filtering Engine is running")
@@ -160,7 +161,7 @@ class ListManager:
                 r = subprocess.run(
                     ["tasklist", "/FI", "IMAGENAME eq AdguardSvc.exe"],
                     capture_output=True, text=True, timeout=5,
-                    creationflags=subprocess.CREATE_NO_WINDOW,
+                    creationflags=_CNO,
                 )
                 if "AdguardSvc.exe" in r.stdout:
                     results.append("[WARN] Adguard is running - may cause conflicts")

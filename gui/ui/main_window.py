@@ -26,8 +26,8 @@ class MainWindow(QMainWindow):
         self.active_strategy_name = ""
 
         self.setWindowTitle("Mangopret")
-        self.setMinimumSize(850, 600)
-        self.resize(950, 700)
+        self.setMinimumSize(640, 480)
+        self.resize(900, 650)
 
         self._load_strategies()
         self._build_ui()
@@ -41,6 +41,9 @@ class MainWindow(QMainWindow):
             if idx >= 0:
                 self.strategy_combo.setCurrentIndex(idx)
                 self._on_strategy_changed(idx)
+
+        if self.config.get("auto_start", False) and last:
+            QTimer.singleShot(1000, lambda: self._start_strategy(last))
 
     def _load_strategies(self):
         strategies_dir = self.platform.strategies_dir
@@ -114,7 +117,9 @@ class MainWindow(QMainWindow):
         self.tray.start_requested.connect(self._start_strategy)
         self.tray.stop_requested.connect(self._stop_strategy)
         self.tray.quit_requested.connect(self._quit)
+        self.tray.autostart_changed.connect(self._on_autostart)
 
+        self.tray.set_autostart(self.config.get("auto_start", False))
         self.tray.show()
 
     def _setup_timer(self):
@@ -235,7 +240,7 @@ class MainWindow(QMainWindow):
                 subprocess.Popen(
                     ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
                      "-File", str(test_file)],
-                    creationflags=subprocess.CREATE_NO_WINDOW,
+                    creationflags=0x08000000,
                 )
                 self._log("Tests started in PowerShell")
             else:
@@ -270,6 +275,10 @@ class MainWindow(QMainWindow):
         self._stop_strategy()
         self.tray.hide()
         QApplication.instance().quit()
+
+    def _on_autostart(self, enabled):
+        self.config.set("auto_start", enabled)
+        self._log(f"Auto-start: {'enabled' if enabled else 'disabled'}")
 
     def closeEvent(self, event):
         if self.config.get("minimize_to_tray", True) and self.tray.tray.isVisible():

@@ -1,7 +1,7 @@
 [Desktop Entry]
 Name=Mangopret
 Comment=Cross-platform DPI bypass manager
-Exec=python3 gui/main.py
+Exec=bash -c 'cd "$(dirname "$(readlink -f "$0")")" && ./run_gui.sh'
 Icon=mangopret
 Terminal=false
 Type=Application

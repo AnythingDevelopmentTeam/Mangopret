@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag'
+        description: 'Release tag (e.g. v1.10.0)'
         required: true
 
 jobs:
@@ -17,45 +17,101 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Verify version matches version.txt
+      - name: Verify tag format
         run: |
-          VERSION=$(cat .service/version.txt)
-          if [ "$VERSION" != "${{ github.event.inputs.tag }}" ]; then
-            echo "Error: tag '${{ github.event.inputs.tag }}' does not match .service/version.txt ('$VERSION')"
+          TAG="${{ github.event.inputs.tag }}"
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Error: tag must match vX.Y.Z format"
             exit 1
           fi
 
       - name: Install tools
         run: |
-          sudo apt-get update
-          sudo apt-get install -y zip tar rar
+          sudo apt-get update -qq
+          sudo apt-get install -y zip tar
+
+      - name: Download portable Python
+        run: |
+          PYTHON_VER="3.11.9"
+          PYTHON_URL="https://www.python.org/ftp/python/${PYTHON_VER}/python-${PYTHON_VER}-embed-amd64.zip"
+
+          echo "Downloading Python ${PYTHON_VER} embeddable package..."
+          curl -fsSL -o python-embed.zip "$PYTHON_URL"
+
+          echo "Extracting to python/ ..."
+          mkdir -p python
+          unzip -q python-embed.zip -d python
+
+          # Enable 'import site' so pip and installed packages work
+          PTH_FILE=$(find python -name 'python*._pth' | head -1)
+          if [ -f "$PTH_FILE" ]; then
+            sed -i 's/^#import site/import site/' "$PTH_FILE"
+            echo "Patched $PTH_FILE to enable site packages"
+          fi
+
+          # Download get-pip.py
+          echo "Downloading get-pip.py..."
+          curl -fsSL -o python/get-pip.py https://bootstrap.pypa.io/get-pip.py
+
+          # Install pip into the embeddable Python
+          echo "Installing pip..."
+          python/python.exe python/get-pip.py --no-warn-script-location || true
+
+          # Install PyQt6
+          echo "Installing PyQt6..."
+          python/python.exe -m pip install PyQt6 --no-warn-script-location || true
+
+          # Cleanup
+          rm -f python-embed.zip python/get-pip.py
+
+          echo "Portable Python ready"
+          python/python.exe --version || echo "Python bundled (can't verify on Linux)"
 
       - name: Prepare release bundle
         run: |
-          NAME="zapret-discord-youtube-${{ github.event.inputs.tag }}"
+          NAME="mangopret-${{ github.event.inputs.tag }}"
 
-          mkdir "$NAME"
+          mkdir -p "$NAME"
 
-          cp -r bin "$NAME/"
+          # Core
+          cp -r gui "$NAME/"
           cp -r lists "$NAME/"
-          cp -r utils "$NAME/"
-          cp *.bat "$NAME/"
+          cp -r bin "$NAME/"
+          cp -r .service "$NAME/"
+
+          # Portable Python (Windows)
+          cp -r python "$NAME/"
+
+          # Scripts
+          cp run.sh "$NAME/"
+          cp run_gui.sh "$NAME/"
+          cp run_gui.bat "$NAME/"
+          cp run.bat "$NAME/"
+          cp service.bat "$NAME/"
+          cp silent_install.sh "$NAME/"
+          cp mangopret.desktop "$NAME/"
+
+          # Make shell scripts executable
+          chmod +x "$NAME/run.sh"
+          chmod +x "$NAME/run_gui.sh"
+          chmod +x "$NAME/silent_install.sh"
+
+          # Remove pycache from gui/
+          find "$NAME" -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 
       - name: Create archives
         run: |
-          NAME="zapret-discord-youtube-${{ github.event.inputs.tag }}"
+          NAME="mangopret-${{ github.event.inputs.tag }}"
 
           zip -qr "${NAME}.zip" "$NAME"
-          rar a -idq "${NAME}.rar" "$NAME"
           tar --owner=0 --group=0 -czf "${NAME}.tar.gz" "$NAME"
 
       - name: Print SHA256 checksums
         run: |
-          NAME="zapret-discord-youtube-${{ github.event.inputs.tag }}"
+          NAME="mangopret-${{ github.event.inputs.tag }}"
 
           sha256sum \
             "${NAME}.zip" \
-            "${NAME}.rar" \
             "${NAME}.tar.gz"
 
       - name: Create GitHub Release
@@ -63,7 +119,7 @@ jobs:
         with:
           tag_name: ${{ github.event.inputs.tag }}
           name: ${{ github.event.inputs.tag }}
+          generate_release_notes: true
           files: |
-            zapret-discord-youtube-${{ github.event.inputs.tag }}.zip
-            zapret-discord-youtube-${{ github.event.inputs.tag }}.rar
-            zapret-discord-youtube-${{ github.event.inputs.tag }}.tar.gz
+            mangopret-${{ github.event.inputs.tag }}.zip
+            mangopret-${{ github.event.inputs.tag }}.tar.gz

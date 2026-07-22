@@ -11,22 +11,25 @@ class LogTab(QWidget):
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
-        layout.setSpacing(8)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
 
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
         self.log_text.setFontFamily("Consolas")
-        self.log_text.setFontPointSize(11)
+        self.log_text.setFontPointSize(10)
         layout.addWidget(self.log_text, 1)
 
         btn_row = QHBoxLayout()
         btn_clear = QPushButton("Clear Log")
         btn_clear.setObjectName("secondaryBtn")
+        btn_clear.setMinimumHeight(28)
         btn_clear.clicked.connect(lambda: self.log_text.clear())
         btn_row.addWidget(btn_clear)
 
         btn_copy = QPushButton("Copy Log")
         btn_copy.setObjectName("secondaryBtn")
+        btn_copy.setMinimumHeight(28)
         btn_copy.clicked.connect(self._copy_log)
         btn_row.addWidget(btn_copy)
 

@@ -47,6 +47,7 @@ class SystemTray(QObject):
     start_requested = pyqtSignal(str)
     stop_requested = pyqtSignal()
     quit_requested = pyqtSignal()
+    autostart_changed = pyqtSignal(bool)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -70,6 +71,12 @@ class SystemTray(QObject):
 
         self._quit_action = self._menu.addAction("Quit")
         self._quit_action.triggered.connect(self.quit_requested.emit)
+
+        self._menu.addSeparator()
+
+        self._autostart_action = self._menu.addAction("Auto-start")
+        self._autostart_action.setCheckable(True)
+        self._autostart_action.triggered.connect(self._on_autostart)
 
         self.tray.setContextMenu(self._menu)
         self.tray.activated.connect(self._on_activated)
@@ -96,6 +103,12 @@ class SystemTray(QObject):
     def _on_activated(self, reason):
         if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
             self.show_requested.emit()
+
+    def _on_autostart(self, checked):
+        self.autostart_changed.emit(checked)
+
+    def set_autostart(self, enabled):
+        self._autostart_action.setChecked(enabled)
 
     def set_active(self, active: bool, strategy_name: str = ""):
         self._start_action.setEnabled(not active)

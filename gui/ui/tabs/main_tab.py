@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
     QLabel, QComboBox, QPushButton, QRadioButton,
-    QButtonGroup, QFrame,
+    QButtonGroup, QFrame, QScrollArea, QGridLayout,
 )
 from PyQt6.QtCore import pyqtSignal, Qt
 
@@ -21,8 +21,17 @@ class MainTab(QWidget):
         self._build_ui()
 
     def _build_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setSpacing(12)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        outer.addWidget(scroll)
+
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setSpacing(10)
 
         header = QLabel("Mangopret")
         header.setObjectName("headerLabel")
@@ -34,7 +43,7 @@ class MainTab(QWidget):
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(subtitle)
 
-        layout.addSpacing(8)
+        layout.addSpacing(4)
 
         strategy_group = QGroupBox("Strategy")
         sg_layout = QVBoxLayout(strategy_group)
@@ -42,7 +51,7 @@ class MainTab(QWidget):
         row = QHBoxLayout()
         row.addWidget(QLabel("Select:"))
         self.strategy_combo = QComboBox()
-        self.strategy_combo.setMinimumWidth(300)
+        self.strategy_combo.setMinimumWidth(200)
         row.addWidget(self.strategy_combo, 1)
         sg_layout.addLayout(row)
 
@@ -53,13 +62,13 @@ class MainTab(QWidget):
 
         btn_row = QHBoxLayout()
         self.btn_start = QPushButton("Start")
-        self.btn_start.setMinimumHeight(36)
+        self.btn_start.setMinimumHeight(32)
         self.btn_start.clicked.connect(self._on_start)
         btn_row.addWidget(self.btn_start)
 
         self.btn_stop = QPushButton("Stop")
         self.btn_stop.setObjectName("stopBtn")
-        self.btn_stop.setMinimumHeight(36)
+        self.btn_stop.setMinimumHeight(32)
         self.btn_stop.setEnabled(False)
         self.btn_stop.clicked.connect(self._on_stop)
         btn_row.addWidget(self.btn_stop)
@@ -69,6 +78,7 @@ class MainTab(QWidget):
 
         status_group = QGroupBox("Status")
         st_layout = QVBoxLayout(status_group)
+        st_layout.setSpacing(4)
 
         self.status_labels = {}
         for key, label_text in [
@@ -79,7 +89,7 @@ class MainTab(QWidget):
         ]:
             row = QHBoxLayout()
             lbl = QLabel(label_text)
-            lbl.setMinimumWidth(120)
+            lbl.setFixedWidth(110)
             row.addWidget(lbl)
             val = QLabel("checking...")
             val.setObjectName("statusWarn")
@@ -92,6 +102,7 @@ class MainTab(QWidget):
 
         ctrl_group = QGroupBox("Quick Controls")
         ct_layout = QVBoxLayout(ctrl_group)
+        ct_layout.setSpacing(6)
 
         gf_row = QHBoxLayout()
         gf_row.addWidget(QLabel("Game filter:"))
@@ -126,27 +137,33 @@ class MainTab(QWidget):
         ip_row.addStretch()
         ct_layout.addLayout(ip_row)
 
-        btn_row2 = QHBoxLayout()
+        btn_grid = QGridLayout()
+        btn_grid.setSpacing(6)
+
         btn_refresh = QPushButton("Refresh")
         btn_refresh.setObjectName("secondaryBtn")
+        btn_refresh.setMinimumHeight(28)
         btn_refresh.clicked.connect(self.refresh_requested.emit)
-        btn_row2.addWidget(btn_refresh)
+        btn_grid.addWidget(btn_refresh, 0, 0)
 
         btn_diag = QPushButton("Diagnostics")
         btn_diag.setObjectName("secondaryBtn")
+        btn_diag.setMinimumHeight(28)
         btn_diag.clicked.connect(self.diagnostics_requested.emit)
-        btn_row2.addWidget(btn_diag)
+        btn_grid.addWidget(btn_diag, 0, 1)
 
         btn_test = QPushButton("Test Sites")
         btn_test.setObjectName("secondaryBtn")
+        btn_test.setMinimumHeight(28)
         btn_test.clicked.connect(self.test_requested.emit)
-        btn_row2.addWidget(btn_test)
+        btn_grid.addWidget(btn_test, 0, 2)
 
-        btn_row2.addStretch()
-        ct_layout.addLayout(btn_row2)
+        ct_layout.addLayout(btn_grid)
 
         layout.addWidget(ctrl_group)
         layout.addStretch()
+
+        scroll.setWidget(container)
 
     def set_strategies(self, strategies: list, current: str = ""):
         self.strategy_combo.clear()
@@ -167,10 +184,8 @@ class MainTab(QWidget):
         self._active_strategy = strategy_name if active else ""
         self.btn_start.setEnabled(not active)
         self.btn_stop.setEnabled(active)
-        if active:
-            self.strategy_combo.setEnabled(False)
-        else:
-            self.strategy_combo.setEnabled(True)
+        self.btn_start.setText("Start" if not active else "Switch")
+        self.btn_start.setEnabled(True)
 
     def set_status(self, key: str, text: str, status: str = "ok"):
         if key in self.status_labels:
