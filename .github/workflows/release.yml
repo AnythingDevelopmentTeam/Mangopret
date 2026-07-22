@@ -79,7 +79,6 @@ jobs:
           cp run_gui.sh "$NAME/"
           cp run_gui.bat "$NAME/"
           cp run.bat "$NAME/"
-          cp service.bat "$NAME/"
           cp silent_install.sh "$NAME/"
           cp mangopret.desktop "$NAME/"
 
