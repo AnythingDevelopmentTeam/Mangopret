@@ -1,4 +1,4 @@
-<div align="center">
+AnythingDevelopmentTeam/Mangopret<div align="center">
 
 # MangoPret
 Поддержите оригинального разработчика zapret [тут](https://github.com/bol-van/zapret?tab=readme-ov-file#%D0%BF%D0%BE%D0%B4%D0%B4%D0%B5%D1%80%D0%B6%D0%B0%D1%82%D1%8C-%D1%80%D0%B0%D0%B7%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%87%D0%B8%D0%BA%D0%B0)
@@ -113,11 +113,11 @@ sc delete название_из_первого_шага
 
 Но помните, что при включении `ipset any` появятся проблемы с открытием многих сайтов. Чтобы этого избежать, не используйте `ipset any` на постоянной основе. Вместо этого нужно выяснить все IP адреса, которые используются игрой, и добавить их в `ipset-all.txt`
 
-Если и это не помогло, создайте ветку обсуждений в разделе [Discussions](https://github.com/AnythingDevelopmentTeam/mangopret/discussions) (не в issues) и ждите помощи от других игроков.
+Если и это не помогло, создайте ветку обсуждений в разделе [Discussions](https://github.com/AnythingDevelopmentTeam/Mangopret/discussions) (не в issues) и ждите помощи от других игроков.
 
 ### Не нашли своей проблемы
 
-- Создайте её [тут](https://github.com/AnythingDevelopmentTeam/mangopret/issues)
+- Создайте её [тут](https://github.com/AnythingDevelopmentTeam/Mangopret/issues)
 
 ## 🗒️Добавление адресов прочих ресурсов
 
@@ -136,7 +136,7 @@ sc delete название_из_первого_шага
 
 ## ⚖️Лицензирование
 
-Проект распространяется на условиях лицензии [MIT](https://github.com/AnythingDevelopmentTeam/mangopret/blob/main/LICENSE.txt)
+Проект распространяется на условиях лицензии [MIT](https://github.com/AnythingDevelopmentTeam/Mangopret/blob/main/LICENSE.txt)
 
 ## 🩷Благодарность участникам проекта
 
