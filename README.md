@@ -88,7 +88,6 @@ sc delete название_из_первого_шага
 - Убедитесь что вы настроили Secure DNS.
 - Отключите блокировщик рекламы, известно что YouTube начал с ними бороться.
 - Пробуйте все другие стратегии (если раньше работало, но перестало).
-- См. также [#251](https://github.com/Flowseal/zapret-discord-youtube/discussions/251)
 
 ### Не работает <img src="https://cdn-icons-png.flaticon.com/128/5968/5968756.png" height=18 /> Discord
 
@@ -98,7 +97,6 @@ sc delete название_из_первого_шага
 - Проверьте приложение Discord. Помогла ли очистка кэша?
 - Проверьте Discord в браузере: https://discord.com/app. В браузере работает? Если работает, то можете пользоваться в нём.
 - Если Discord и в браузере не работает, то пробуйте ещё раз все стратегии. Бывает такое, что на одной стратегии YouTube работает, а Discord нет.
-- См. также [#252](https://github.com/Flowseal/zapret-discord-youtube/discussions/252)
 
 ### Не работает <img src="https://cdn-icons-png.flaticon.com/128/5968/5968804.png" height=18 /> Telegram
 
@@ -115,11 +113,11 @@ sc delete название_из_первого_шага
 
 Но помните, что при включении `ipset any` появятся проблемы с открытием многих сайтов. Чтобы этого избежать, не используйте `ipset any` на постоянной основе. Вместо этого нужно выяснить все IP адреса, которые используются игрой, и добавить их в `ipset-all.txt`
 
-Если и это не помогло, создайте ветку обсуждений в разделе [Discussions](https://github.com/Flowseal/zapret-discord-youtube/discussions) (не в issues) и ждите помощи от других игроков.
+Если и это не помогло, создайте ветку обсуждений в разделе [Discussions](https://github.com/AnythingDevelopmentTeam/mangopret/discussions) (не в issues) и ждите помощи от других игроков.
 
 ### Не нашли своей проблемы
 
-- Создайте её [тут](https://github.com/Flowseal/zapret-discord-youtube/issues)
+- Создайте её [тут](https://github.com/AnythingDevelopmentTeam/mangopret/issues)
 
 ## 🗒️Добавление адресов прочих ресурсов
 
@@ -138,7 +136,7 @@ sc delete название_из_первого_шага
 
 ## ⚖️Лицензирование
 
-Проект распространяется на условиях лицензии [MIT](https://github.com/Flowseal/zapret-discord-youtube/blob/main/LICENSE.txt)
+Проект распространяется на условиях лицензии [MIT](https://github.com/AnythingDevelopmentTeam/mangopret/blob/main/LICENSE.txt)
 
 ## 🩷Благодарность участникам проекта
 
