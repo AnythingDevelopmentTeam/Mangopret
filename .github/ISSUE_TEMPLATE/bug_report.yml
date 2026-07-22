@@ -10,9 +10,9 @@ body:
       label: ⚠️ Чеклист
       description: Перед созданием нового Issue, удостоверьтесь что выполнили следующие пункты
       options:
-        - label: Я искал решение проблемы в [README](https://github.com/Flowseal/zapret-discord-youtube/blob/main/README.md) и среди [Issues](https://github.com/Flowseal/zapret-discord-youtube/issues)
-        - label: Я скачал ``zapret-discord-youtube`` из [релизов официального репозитория](https://github.com/Flowseal/zapret-discord-youtube/releases)
-
+        - label: Я искал решение проблемы в [README](https://github.com/AnythingDevelopmentTeam/Mangopret/blob/main/README.md) и среди [Issues](https://github.com/AnythingDevelopmentTeam/Mangopret/issues)
+        - label: Я скачал ``mangopret`` из [релизов официального репозитория](https://github.com/AnythingDevelopmentTeam/Mangopret/releases)
+        - label: Я гений который нажал все галочки не читая  
   - type: textarea
     id: description
     attributes:
@@ -25,8 +25,8 @@ body:
   - type: textarea
     id: version
     attributes:
-      label: Версия zapret-discord-youtube
-      description: Версия zapret-discord-youtube на которой вы словили проблему
+      label: Версия mangopret
+      description: Версия mangopret на которой вы словили проблему
       placeholder: Версия
     validations:
       required: true
