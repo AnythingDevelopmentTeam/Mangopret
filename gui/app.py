@@ -1,16 +1,25 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, scrolledtext, filedialog
+from tkinter import ttk, messagebox, scrolledtext
 import subprocess
 import os
 import glob
 import threading
 import time
-import hashlib
+import sys
+
+try:
+    import pystray
+    from PIL import Image, ImageDraw
+    HAS_TRAY = True
+except ImportError:
+    HAS_TRAY = False
 
 ZAPRET_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BIN_DIR = os.path.join(ZAPRET_DIR, "bin")
 LISTS_DIR = os.path.join(ZAPRET_DIR, "lists")
 SERVICE_BAT = os.path.join(ZAPRET_DIR, "service.bat")
+AUTORUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
+APP_NAME = "ZapretGUI"
 
 
 def run_cmd(cmd, timeout=30):
@@ -53,18 +62,30 @@ def get_game_filter_status():
 
 def get_ipset_status():
     ipset = os.path.join(LISTS_DIR, "ipset-all.txt")
-    backup = os.path.join(LISTS_DIR, "ipset-all.txt.backup")
     if not os.path.exists(ipset):
         return "none"
-    size = os.path.getsize(ipset)
-    if size < 100:
-        with open(ipset, "r") as f:
-            content = f.read().strip()
-        if "203.0.113.113" in content:
-            return "none"
-        if content == "":
-            return "any"
+    with open(ipset, "r") as f:
+        content = f.read().strip()
+    if "203.0.113.113" in content:
+        return "none"
+    if content == "":
+        return "any"
     return "loaded"
+
+
+def is_winws_running():
+    out = run_cmd('tasklist /FI "IMAGENAME eq winws.exe"', timeout=5)
+    return "winws.exe" in out
+
+
+def create_tray_icon(color="green"):
+    img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    colors = {"green": "#4CAF50", "red": "#F44336", "gray": "#9E9E9E"}
+    c = colors.get(color, "#9E9E9E")
+    draw.rectangle([8, 8, 56, 56], fill=c, outline="white", width=3)
+    draw.text((18, 18), "Z", fill="white")
+    return img
 
 
 class ZapretGUI:
@@ -77,9 +98,117 @@ class ZapretGUI:
         self.process = None
         self.strategies = get_strategies()
         self.strategy_names = [s[0] for s in self.strategies]
+        self.active_strategy = None
+        self.tray_icon = None
+        self._hidden = False
 
         self._build_ui()
         self._refresh_status()
+
+        self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+
+        if HAS_TRAY:
+            self._start_tray()
+
+    def _start_tray(self):
+        self.tray_icon = pystray.Icon(
+            APP_NAME,
+            create_tray_icon("green"),
+            "Zapret GUI",
+            menu=self._build_tray_menu()
+        )
+        threading.Thread(target=self.tray_icon.run, daemon=True).start()
+
+    def _build_tray_menu(self):
+        items = [
+            pystray.MenuItem("Show", self._tray_show, default=True),
+            pystray.MenuItem(lambda: f"Status: {'RUNNING' if is_winws_running() else 'STOPPED'}", None, enabled=False),
+            pystray.MenuItem(lambda: f"Strategy: {self.active_strategy or 'none'}", None, enabled=False),
+            pystray.Menu.SEPARATOR,
+        ]
+
+        strategy_items = []
+        for name in self.strategy_names:
+            strategy_items.append(
+                pystray.MenuItem(name, self._tray_start_strategy)
+            )
+
+        items.append(pystray.MenuItem("Strategies", pystray.Menu(*strategy_items)))
+        items.append(pystray.Menu.SEPARATOR)
+        items.append(pystray.MenuItem("Start", self._tray_start_current))
+        items.append(pystray.MenuItem("Stop", self._tray_stop))
+        items.append(pystray.Menu.SEPARATOR)
+        items.append(pystray.MenuItem("Autorun", self._tray_toggle_autorun, checked=lambda item: self._is_autorun()))
+        items.append(pystray.Menu.SEPARATOR)
+        items.append(pystray.MenuItem("Exit", self._tray_exit))
+
+        return pystray.Menu(*items)
+
+    def _tray_show(self, icon=None, item=None):
+        self.root.after(0, self._show_window)
+
+    def _show_window(self):
+        self._hidden = False
+        self.root.deiconify()
+        self.root.lift()
+        self.root.focus_force()
+
+    def _tray_start_strategy(self, icon=None, item=None):
+        name = str(item) if item else None
+        if not name:
+            return
+        self.root.after(0, lambda: self._do_start(name))
+
+    def _tray_start_current(self, icon=None, item=None):
+        self.root.after(0, self._start_strategy)
+
+    def _tray_stop(self, icon=None, item=None):
+        self.root.after(0, self._stop_strategy)
+
+    def _tray_exit(self, icon=None, item=None):
+        if self.tray_icon:
+            self.tray_icon.stop()
+        self.root.after(0, self.root.destroy)
+
+    def _is_autorun(self):
+        try:
+            import winreg
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, AUTORUN_KEY, 0, winreg.KEY_READ)
+            winreg.QueryValueEx(key, APP_NAME)
+            winreg.CloseKey(key)
+            return True
+        except Exception:
+            return False
+
+    def _tray_toggle_autorun(self, icon=None, item=None):
+        self.root.after(0, self._toggle_autorun)
+
+    def _toggle_autorun(self):
+        try:
+            import winreg
+            exe = sys.executable
+            script = os.path.abspath(__file__)
+            cmd = f'"{exe}" "{script}"'
+
+            if self._is_autorun():
+                key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, AUTORUN_KEY, 0, winreg.KEY_SET_ACCESS)
+                winreg.DeleteValue(key, APP_NAME)
+                winreg.CloseKey(key)
+                self._log("Autorun DISABLED")
+            else:
+                key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, AUTORUN_KEY, 0, winreg.KEY_SET_ACCESS)
+                winreg.SetValueEx(key, APP_NAME, 0, winreg.REG_SZ, cmd)
+                winreg.CloseKey(key)
+                self._log("Autorun ENABLED")
+        except Exception as e:
+            self._log(f"Autorun error: {e}")
+
+    def _on_close(self):
+        if HAS_TRAY:
+            self._hidden = True
+            self.root.withdraw()
+        else:
+            self._tray_exit()
 
     def _build_ui(self):
         style = ttk.Style()
@@ -171,10 +300,8 @@ class ZapretGUI:
 
         row8 = ttk.Frame(ctrl_frame)
         row8.pack(fill=tk.X, pady=(8, 0))
-        self.btn_refresh = ttk.Button(row8, text="Refresh Status", command=self._refresh_status, width=18)
-        self.btn_refresh.pack(side=tk.LEFT)
-        self.btn_diag = ttk.Button(row8, text="Run Diagnostics", command=self._run_diagnostics, width=18)
-        self.btn_diag.pack(side=tk.LEFT, padx=(10, 0))
+        ttk.Button(row8, text="Refresh Status", command=self._refresh_status, width=18).pack(side=tk.LEFT)
+        ttk.Button(row8, text="Run Diagnostics", command=self._run_diagnostics, width=18).pack(side=tk.LEFT, padx=(10, 0))
 
     def _build_lists_tab(self, parent):
         paned = ttk.PanedWindow(parent, orient=tk.HORIZONTAL)
@@ -188,13 +315,7 @@ class ZapretGUI:
         ttk.Label(left, text="Domain Lists").pack(anchor=tk.W)
         self.domain_listbox = tk.Listbox(left, font=("Consolas", 10))
         self.domain_listbox.pack(fill=tk.BOTH, expand=True, pady=(5, 0))
-        domain_files = [
-            "list-general.txt",
-            "list-general-user.txt",
-            "list-exclude.txt",
-            "list-google.txt",
-        ]
-        for f in domain_files:
+        for f in ["list-general.txt", "list-general-user.txt", "list-exclude.txt", "list-google.txt"]:
             self.domain_listbox.insert(tk.END, f)
         self.domain_listbox.bind("<<ListboxSelect>>", self._on_domain_select)
 
@@ -216,7 +337,6 @@ class ZapretGUI:
 
         btn_frame = ttk.Frame(frame)
         btn_frame.pack(fill=tk.X, pady=(10, 0))
-
         ttk.Button(btn_frame, text="Install Service", command=self._install_service, width=20).pack(side=tk.LEFT)
         ttk.Button(btn_frame, text="Remove Services", command=self._remove_services, width=20).pack(side=tk.LEFT, padx=(10, 0))
         ttk.Button(btn_frame, text="Check Status", command=self._check_service_status, width=20).pack(side=tk.LEFT, padx=(10, 0))
@@ -236,8 +356,7 @@ class ZapretGUI:
     def _build_log_tab(self, parent):
         self.log_text = scrolledtext.ScrolledText(parent, font=("Consolas", 10), wrap=tk.WORD)
         self.log_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        btn = ttk.Button(parent, text="Clear Log", command=lambda: self.log_text.delete("1.0", tk.END))
-        btn.pack(pady=(0, 10))
+        ttk.Button(parent, text="Clear Log", command=lambda: self.log_text.delete("1.0", tk.END)).pack(pady=(0, 10))
 
     def _log(self, msg):
         timestamp = time.strftime("%H:%M:%S")
@@ -248,7 +367,7 @@ class ZapretGUI:
         svc = get_service_status()
         gf = get_game_filter_status()
         ipset = get_ipset_status()
-        winws_running = "winws.exe" in run_cmd("tasklist /FI \"IMAGENAME eq winws.exe\"", timeout=5)
+        winws_running = is_winws_running()
 
         self.lbl_service.config(text=svc.upper(), style="Green.TLabel" if svc == "running" else "Red.TLabel")
         self.lbl_game.config(text=gf)
@@ -257,26 +376,37 @@ class ZapretGUI:
 
         self.game_filter_var.set(gf)
         self.ipset_var.set(ipset)
-        self._log(f"Status refreshed: service={svc}, winws={'running' if winws_running else 'stopped'}, game={gf}, ipset={ipset}")
+
+        if self.tray_icon:
+            color = "green" if winws_running else "red"
+            self.tray_icon.icon = create_tray_icon(color)
+            status_text = f"Zapret - {'RUNNING' if winws_running else 'STOPPED'}"
+            if self.active_strategy:
+                status_text += f" ({self.active_strategy})"
+            self.tray_icon.title = status_text
 
     def _start_strategy(self):
         name = self.strategy_var.get()
         if not name:
             messagebox.showwarning("Warning", "Select a strategy first")
             return
+        self._do_start(name)
+
+    def _do_start(self, name):
         strategy_path = os.path.join(ZAPRET_DIR, f"{name}.bat")
         if not os.path.exists(strategy_path):
-            messagebox.showerror("Error", f"File not found: {strategy_path}")
             return
 
         self._stop_strategy()
         self._log(f"Starting strategy: {name}")
         self.process = subprocess.Popen(
-            f'cmd /c "{strategy_path}"', shell=True, cwd=ZAPRET_DIR, creationflags=subprocess.CREATE_NO_WINDOW
+            f'cmd /c "{strategy_path}"', shell=True, cwd=ZAPRET_DIR,
+            creationflags=subprocess.CREATE_NO_WINDOW
         )
+        self.active_strategy = name
         self.btn_start.config(state=tk.DISABLED)
         self.btn_stop.config(state=tk.NORMAL)
-        self._log(f"Strategy {name} started (PID: {self.process.pid})")
+        self._log(f"Strategy {name} started")
         self.root.after(2000, self._refresh_status)
 
     def _stop_strategy(self):
@@ -289,6 +419,7 @@ class ZapretGUI:
             self.process = None
 
         run_cmd("taskkill /IM winws.exe /F", timeout=10)
+        self.active_strategy = None
         self.btn_start.config(state=tk.NORMAL)
         self.btn_stop.config(state=tk.DISABLED)
         self._log("Strategy stopped")
@@ -300,7 +431,7 @@ class ZapretGUI:
         os.makedirs(os.path.dirname(gf_file), exist_ok=True)
         with open(gf_file, "w") as f:
             f.write(val)
-        self._log(f"Game Filter set to: {val}")
+        self._log(f"Game Filter: {val}")
 
     def _set_ipset_filter(self):
         val = self.ipset_var.get()
@@ -308,22 +439,19 @@ class ZapretGUI:
         backup = os.path.join(LISTS_DIR, "ipset-all.txt.backup")
 
         if val == "none":
-            if os.path.exists(ipset) and os.path.exists(backup):
-                if os.path.getsize(ipset) > 100:
-                    os.replace(ipset, backup)
+            if os.path.exists(ipset) and os.path.exists(backup) and os.path.getsize(ipset) > 100:
+                os.replace(ipset, backup)
             with open(ipset, "w") as f:
                 f.write("203.0.113.113/32\n")
         elif val == "any":
-            if os.path.exists(ipset):
-                size = os.path.getsize(ipset)
-                if size > 100 and "203.0.113.113" not in open(ipset).read():
-                    os.replace(ipset, backup)
+            if os.path.exists(ipset) and os.path.getsize(ipset) > 100 and "203.0.113.113" not in open(ipset).read():
+                os.replace(ipset, backup)
             with open(ipset, "w") as f:
                 f.write("")
         elif val == "loaded":
             if os.path.exists(backup) and os.path.getsize(backup) > 100:
                 os.replace(backup, ipset)
-        self._log(f"IPSet Filter set to: {val}")
+        self._log(f"IPSet Filter: {val}")
 
     def _run_diagnostics(self):
         self._log("Running diagnostics...")
@@ -335,11 +463,10 @@ class ZapretGUI:
         if not selection:
             return
         filename = self.domain_listbox.get(selection[0])
-        filepath = os.path.join(LISTS_DIR, filename)
-        self._current_domain_file = filepath
+        self._current_domain_file = os.path.join(LISTS_DIR, filename)
         self.domain_text.delete("1.0", tk.END)
-        if os.path.exists(filepath):
-            with open(filepath, "r", encoding="utf-8") as f:
+        if os.path.exists(self._current_domain_file):
+            with open(self._current_domain_file, "r", encoding="utf-8") as f:
                 self.domain_text.insert(tk.END, f.read())
         self._log(f"Loaded: {filename}")
 
@@ -356,14 +483,13 @@ class ZapretGUI:
         if not self._current_domain_file:
             messagebox.showwarning("Warning", "Select a list first")
             return
-        domain = tk.simpledialog.askstring("Add Domain", "Enter domain:")
+        import tkinter.simpledialog
+        domain = tkinter.simpledialog.askstring("Add Domain", "Enter domain:")
         if domain:
             self.domain_text.insert(tk.END, domain.strip() + "\n")
             self._save_domain_list()
 
     def _remove_domain(self):
-        if not self._current_domain_file:
-            return
         sel = self.domain_text.tag_ranges(tk.SEL)
         if sel:
             self.domain_text.delete(sel[0], sel[1])
@@ -373,7 +499,6 @@ class ZapretGUI:
         result = run_cmd(f'echo 1 | "{SERVICE_BAT}" install', timeout=30)
         self.service_log.insert(tk.END, result + "\n")
         self.service_log.see(tk.END)
-        self._log("Service installation initiated")
         self._refresh_status()
 
     def _remove_services(self):
@@ -385,9 +510,8 @@ class ZapretGUI:
             self._refresh_status()
 
     def _check_service_status(self):
-        self._log("Checking service status...")
         svc = get_service_status()
-        winws_running = "winws.exe" in run_cmd("tasklist /FI \"IMAGENAME eq winws.exe\"", timeout=5)
+        winws_running = is_winws_running()
         msg = f"Service: {svc}\nwinws.exe: {'running' if winws_running else 'stopped'}"
         self.service_log.insert(tk.END, msg + "\n")
         self.service_log.see(tk.END)
