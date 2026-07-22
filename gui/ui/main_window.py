@@ -10,7 +10,7 @@ from .tabs.lists_tab import ListsTab
 from .tabs.service_tab import ServiceTab
 from .tabs.log_tab import LogTab
 from .tray import SystemTray
-from ..core.strategy import Strategy, StrategyParser
+from core.strategy import Strategy, StrategyParser
 
 
 class MainWindow(QMainWindow):
@@ -88,6 +88,7 @@ class MainWindow(QMainWindow):
 
         self.service_tab = ServiceTab(self.platform, self.config, self.list_manager)
         self.service_tab.log_signal.connect(self._log)
+        self.service_tab.set_strategy_provider(self._get_current_strategy_cmd)
 
         self.log_tab = LogTab()
 
@@ -150,7 +151,15 @@ class MainWindow(QMainWindow):
         )
 
         self._log(f"Starting: {name}")
-        self._log(f"Command: {' '.join(args)}")
+        self._log(f"Command: {' '.join(str(x) for x in args)}")
+
+        if self.platform.is_linux:
+            wf_tcp = self.config.get("wf_tcp", "80,443,2053,2083,2087,2096,8443")
+            wf_udp = self.config.get("wf_udp", "443,19294-19344,50000-50100")
+            queue_num = self.config.get("nfqueue_num", "200")
+            results = self.platform.install_iptables_rules(wf_tcp, wf_udp, queue_num)
+            applied = sum(1 for _, ok, _ in results if ok)
+            self._log(f"iptables: {applied}/{len(results)} rules applied")
 
         self.active_process = self.platform.start_service(name, args)
         self.active_strategy_name = name
@@ -169,6 +178,9 @@ class MainWindow(QMainWindow):
         self.tray.set_active(False)
         self.status_bar.showMessage("Stopped")
         self._log("Strategy stopped")
+        if self.platform.is_linux:
+            self.platform.remove_iptables_rules()
+            self._log("iptables rules cleaned up")
         QTimer.singleShot(1000, self._refresh_status)
 
     def _refresh_status(self):
@@ -192,6 +204,8 @@ class MainWindow(QMainWindow):
 
         self.main_tab.set_game_filter(gf)
         self.main_tab.set_ipset(ipset)
+
+        self.service_tab.refresh_status()
 
         if not running and self.active_strategy_name:
             self.active_strategy_name = ""
@@ -228,6 +242,21 @@ class MainWindow(QMainWindow):
                 self._log("Test script not found")
         else:
             self._log("Tests not available on Linux yet")
+
+    def _get_current_strategy_cmd(self):
+        name = self.main_tab.get_selected_strategy()
+        if not name or name not in self.strategies:
+            return None
+        strategy = self.strategies[name]
+        args = strategy.build_command(
+            binary_path=str(self.platform.binary),
+            bin_dir=str(self.platform.bin_dir),
+            lists_dir=str(self.platform.lists_dir),
+            game_filter_tcp=self.config.game_filter_tcp,
+            game_filter_udp=self.config.game_filter_udp,
+            is_windows=self.platform.is_windows,
+        )
+        return (name, args)
 
     def _log(self, message: str):
         self.log_tab.log(message)

@@ -92,8 +92,10 @@ class Strategy:
         cmd = [str(binary_path)]
 
         if is_windows:
-            tcp_parts = [p.strip() for p in self.wf_tcp.split(",") if p.strip()]
-            udp_parts = [p.strip() for p in self.wf_udp.split(",") if p.strip()]
+            raw_tcp = self.wf_tcp.replace("%GameFilterTCP%", "").replace("{game_filter_tcp}", "")
+            raw_udp = self.wf_udp.replace("%GameFilterUDP%", "").replace("{game_filter_udp}", "")
+            tcp_parts = [p.strip() for p in raw_tcp.split(",") if p.strip()]
+            udp_parts = [p.strip() for p in raw_udp.split(",") if p.strip()]
             if game_filter_tcp and game_filter_tcp != "12":
                 tcp_parts.append(game_filter_tcp)
             if game_filter_udp and game_filter_udp != "12":
@@ -103,19 +105,30 @@ class Strategy:
             if udp_parts:
                 cmd.append(f"--wf-udp={','.join(udp_parts)}")
 
+        has_game_filter = bool(game_filter_tcp or game_filter_udp)
+
         for i, rule in enumerate(self.rules):
-            args = rule.to_args()
+            rule_args = rule.to_args()
             resolved = []
-            for arg in args:
+            skip = False
+
+            for arg in rule_args:
                 if arg.startswith("--"):
                     keyval = arg.split("=", 1)
                     if len(keyval) == 2:
                         val = self._resolve_path(keyval[1], bin_dir, lists_dir)
+                        if keyval[0] in ("--filter-tcp", "--filter-udp") and not val.strip():
+                            skip = True
+                            break
                         resolved.append(f"{keyval[0]}={val}")
                     else:
                         resolved.append(keyval[0])
                 else:
                     resolved.append(self._resolve_path(arg, bin_dir, lists_dir))
+
+            if skip:
+                continue
+
             cmd.extend(resolved)
             if i < len(self.rules) - 1:
                 cmd.append("--new")
@@ -124,8 +137,8 @@ class Strategy:
 
     @staticmethod
     def _resolve_path(value: str, bin_dir: str, lists_dir: str) -> str:
-        value = value.replace("{bin}", bin_dir)
-        value = value.replace("{lists}", lists_dir)
+        value = value.replace("{bin}", bin_dir.rstrip("\\/") + "/")
+        value = value.replace("{lists}", lists_dir.rstrip("\\/") + "/")
         value = value.replace("{game_filter_tcp}", "")
         value = value.replace("{game_filter_udp}", "")
         return value
@@ -180,6 +193,9 @@ class StrategyParser:
                 wf_tcp = wf_tcp_match.group(1).rstrip("^").strip()
             if wf_udp_match:
                 wf_udp = wf_udp_match.group(1).rstrip("^").strip()
+
+            wf_tcp = wf_tcp.replace('%GameFilterTCP%', '').strip(',').strip()
+            wf_udp = wf_udp.replace('%GameFilterUDP%', '').strip(',').strip()
 
             winws_match = re.search(r'winws\.exe["\s]', content)
             if not winws_match:
@@ -295,8 +311,8 @@ class StrategyParser:
         val = val.replace('^!', '!')
         val = val.replace('^"', '"')
 
-        val = val.replace('%BIN%', '{bin}')
-        val = val.replace('%LISTS%', '{lists}')
+        val = val.replace('%BIN%', '{bin}/')
+        val = val.replace('%LISTS%', '{lists}/')
         val = val.replace('%GameFilterTCP%', '{game_filter_tcp}')
         val = val.replace('%GameFilterUDP%', '{game_filter_udp}')
 

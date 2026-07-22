@@ -284,9 +284,170 @@ class PlatformInfo:
         else:
             try:
                 r = subprocess.run(
-                    ["systemctl", "is-active", "zapret"],
+                    ["systemctl", "is-active", "mangopret"],
                     capture_output=True, text=True, timeout=5,
                 )
-                return r.stdout.strip()
+                if r.stdout.strip() == "active":
+                    return "running"
+                elif r.stdout.strip() == "inactive":
+                    return "stopped"
+                elif r.stdout.strip() == "failed":
+                    return "failed"
             except Exception:
-                return "not_installed"
+                pass
+            return "not_installed"
+
+    def is_service_enabled(self) -> bool:
+        if self.is_linux:
+            try:
+                r = subprocess.run(
+                    ["systemctl", "is-enabled", "mangopret"],
+                    capture_output=True, text=True, timeout=5,
+                )
+                return r.stdout.strip() == "enabled"
+            except Exception:
+                pass
+        return False
+
+    def create_systemd_service(self, strategy_cmd: list, strategy_name: str = "") -> bool:
+        if not self.is_linux:
+            return False
+
+        try:
+            unit_dir = Path("/etc/systemd/system")
+            unit_file = unit_dir / "mangopret.service"
+
+            exec_start = " ".join(str(x) for x in strategy_cmd)
+
+            unit_content = f"""[Unit]
+Description=Mangopret DPI Bypass - {strategy_name}
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart={exec_start}
+WorkingDirectory={self.bin_dir}
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+"""
+            unit_file.write_text(unit_content, encoding="utf-8")
+            subprocess.run(["systemctl", "daemon-reload"], capture_output=True, timeout=10)
+            return True
+        except Exception as e:
+            print(f"Failed to create systemd service: {e}")
+            return False
+
+    def start_systemd_service(self) -> tuple:
+        try:
+            r = subprocess.run(
+                ["systemctl", "start", "mangopret"],
+                capture_output=True, text=True, timeout=10,
+            )
+            return (r.returncode == 0, r.stderr.strip() if r.stderr else "")
+        except Exception as e:
+            return (False, str(e))
+
+    def stop_systemd_service(self) -> tuple:
+        try:
+            r = subprocess.run(
+                ["systemctl", "stop", "mangopret"],
+                capture_output=True, text=True, timeout=10,
+            )
+            return (r.returncode == 0, r.stderr.strip() if r.stderr else "")
+        except Exception as e:
+            return (False, str(e))
+
+    def enable_systemd_service(self) -> tuple:
+        try:
+            r = subprocess.run(
+                ["systemctl", "enable", "mangopret"],
+                capture_output=True, text=True, timeout=10,
+            )
+            return (r.returncode == 0, r.stderr.strip() if r.stderr else "")
+        except Exception as e:
+            return (False, str(e))
+
+    def disable_systemd_service(self) -> tuple:
+        try:
+            r = subprocess.run(
+                ["systemctl", "disable", "mangopret"],
+                capture_output=True, text=True, timeout=10,
+            )
+            return (r.returncode == 0, r.stderr.strip() if r.stderr else "")
+        except Exception as e:
+            return (False, str(e))
+
+    def remove_systemd_service(self) -> tuple:
+        try:
+            subprocess.run(["systemctl", "stop", "mangopret"], capture_output=True, timeout=10)
+            subprocess.run(["systemctl", "disable", "mangopret"], capture_output=True, timeout=10)
+            unit_file = Path("/etc/systemd/system/mangopret.service")
+            if unit_file.exists():
+                unit_file.unlink()
+            subprocess.run(["systemctl", "daemon-reload"], capture_output=True, timeout=10)
+            return (True, "")
+        except Exception as e:
+            return (False, str(e))
+
+    def start_windows_service(self) -> tuple:
+        if not self.is_windows:
+            return (False, "Not Windows")
+        try:
+            r = subprocess.run(
+                ["sc", "start", "zapret"],
+                capture_output=True, text=True, timeout=10,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+            return (r.returncode == 0, r.stderr.strip() if r.stderr else "")
+        except Exception as e:
+            return (False, str(e))
+
+    def stop_windows_service(self) -> tuple:
+        if not self.is_windows:
+            return (False, "Not Windows")
+        try:
+            r = subprocess.run(
+                ["sc", "stop", "zapret"],
+                capture_output=True, text=True, timeout=10,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+            return (r.returncode == 0, r.stderr.strip() if r.stderr else "")
+        except Exception as e:
+            return (False, str(e))
+
+    def install_iptables_rules(self, wf_tcp: str, wf_udp: str, queue_num: str = "200") -> list:
+        if not self.is_linux:
+            return []
+        rules = self.build_iptables_rules(wf_tcp, wf_udp, queue_num)
+        results = []
+        for rule in rules:
+            try:
+                r = subprocess.run(rule.split(), capture_output=True, text=True, timeout=10)
+                results.append((rule, r.returncode == 0, r.stderr.strip() if r.stderr else ""))
+            except Exception as e:
+                results.append((rule, False, str(e)))
+        return results
+
+    def remove_iptables_rules(self) -> bool:
+        if not self.is_linux:
+            return False
+        self._cleanup_iptables()
+        return True
+
+    def get_journal_logs(self, lines: int = 50) -> str:
+        if not self.is_linux:
+            return ""
+        try:
+            r = subprocess.run(
+                ["journalctl", "-u", "mangopret", "-n", str(lines), "--no-pager"],
+                capture_output=True, text=True, timeout=10,
+            )
+            return r.stdout
+        except Exception:
+            return ""
