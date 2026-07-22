@@ -6,6 +6,7 @@ import glob
 import threading
 import time
 import sys
+import ctypes
 
 try:
     import pystray
@@ -22,12 +23,31 @@ AUTORUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 APP_NAME = "ZapretGUI"
 
 
+def is_admin():
+    try:
+        return ctypes.windll.shell32.IsUserAnAdmin()
+    except Exception:
+        return False
+
+
+def request_admin():
+    if is_admin():
+        return True
+    script = os.path.abspath(__file__)
+    ctypes.windll.shell32.ShellExecuteW(
+        None, "runas", sys.executable, f'"{script}"', None, 1
+    )
+    sys.exit(0)
+
+
 def run_cmd(cmd, timeout=30):
     try:
         r = subprocess.run(
-            cmd, shell=True, capture_output=True, text=True, timeout=timeout, cwd=ZAPRET_DIR
+            cmd, shell=True, capture_output=True, timeout=timeout, cwd=ZAPRET_DIR
         )
-        return r.stdout + r.stderr
+        out = r.stdout.decode("utf-8", errors="replace")
+        err = r.stderr.decode("utf-8", errors="replace")
+        return out + err
     except subprocess.TimeoutExpired:
         return "[timeout]"
     except Exception as e:
@@ -122,8 +142,8 @@ class ZapretGUI:
     def _build_tray_menu(self):
         items = [
             pystray.MenuItem("Show", self._tray_show, default=True),
-            pystray.MenuItem(lambda: f"Status: {'RUNNING' if is_winws_running() else 'STOPPED'}", None, enabled=False),
-            pystray.MenuItem(lambda: f"Strategy: {self.active_strategy or 'none'}", None, enabled=False),
+            pystray.MenuItem(lambda item: f"Status: {'RUNNING' if is_winws_running() else 'STOPPED'}", None, enabled=False),
+            pystray.MenuItem(lambda item: f"Strategy: {self.active_strategy or 'none'}", None, enabled=False),
             pystray.Menu.SEPARATOR,
         ]
 
@@ -138,7 +158,7 @@ class ZapretGUI:
         items.append(pystray.MenuItem("Start", self._tray_start_current))
         items.append(pystray.MenuItem("Stop", self._tray_stop))
         items.append(pystray.Menu.SEPARATOR)
-        items.append(pystray.MenuItem("Autorun", self._tray_toggle_autorun, checked=lambda item: self._is_autorun()))
+        items.append(pystray.MenuItem("Autorun", self._tray_toggle_autorun, checked=self._is_autorun))
         items.append(pystray.Menu.SEPARATOR)
         items.append(pystray.MenuItem("Exit", self._tray_exit))
 
@@ -170,7 +190,7 @@ class ZapretGUI:
             self.tray_icon.stop()
         self.root.after(0, self.root.destroy)
 
-    def _is_autorun(self):
+    def _is_autorun(self, item=None):
         try:
             import winreg
             key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, AUTORUN_KEY, 0, winreg.KEY_READ)
@@ -215,6 +235,7 @@ class ZapretGUI:
         style.configure("Status.TLabel", font=("Segoe UI", 10, "bold"))
         style.configure("Green.TLabel", foreground="green", font=("Segoe UI", 10, "bold"))
         style.configure("Red.TLabel", foreground="red", font=("Segoe UI", 10, "bold"))
+        style.configure("Admin.TLabel", foreground="#FF6600", font=("Segoe UI", 9, "bold"))
 
         notebook = ttk.Notebook(self.root)
         notebook.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
@@ -226,12 +247,15 @@ class ZapretGUI:
 
         notebook.add(tab_main, text="  Main  ")
         notebook.add(tab_lists, text="  Lists  ")
-        notebook.add(tab_service, text="  Service  ")
+        # notebook.add(tab_service, text="  Service  ")  # TODO: coming soon
         notebook.add(tab_log, text="  Log  ")
+
+        # Service tab coming soon
+        coming_soon = ttk.Label(self.root, text="Service tab coming soon", foreground="gray", font=("Segoe UI", 9, "italic"))
+        coming_soon.pack(side=tk.BOTTOM, pady=5)
 
         self._build_main_tab(tab_main)
         self._build_lists_tab(tab_lists)
-        self._build_service_tab(tab_service)
         self._build_log_tab(tab_log)
 
     def _build_main_tab(self, parent):
@@ -257,8 +281,15 @@ class ZapretGUI:
         status_frame = ttk.LabelFrame(parent, text="Status", padding=10)
         status_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
 
+        row_admin = ttk.Frame(status_frame)
+        row_admin.pack(fill=tk.X)
+        ttk.Label(row_admin, text="Admin:").pack(side=tk.LEFT)
+        admin_text = "YES" if is_admin() else "NO"
+        self.lbl_admin = ttk.Label(row_admin, text=admin_text, style="Green.TLabel" if is_admin() else "Red.TLabel")
+        self.lbl_admin.pack(side=tk.LEFT, padx=(10, 0))
+
         row2 = ttk.Frame(status_frame)
-        row2.pack(fill=tk.X)
+        row2.pack(fill=tk.X, pady=(5, 0))
         ttk.Label(row2, text="Service:").pack(side=tk.LEFT)
         self.lbl_service = ttk.Label(row2, text="checking...", style="Status.TLabel")
         self.lbl_service.pack(side=tk.LEFT, padx=(10, 0))
@@ -344,6 +375,17 @@ class ZapretGUI:
         self.service_log = scrolledtext.ScrolledText(frame, font=("Consolas", 10), height=15, wrap=tk.WORD)
         self.service_log.pack(fill=tk.BOTH, expand=True, pady=(10, 0))
 
+        svc_menu = tk.Menu(self.service_log, tearoff=0)
+        svc_menu.add_command(label="Copy", command=lambda: self.service_log.event_generate("<<Copy>>"))
+        svc_menu.add_command(label="Select All", command=lambda: self.service_log.tag_add("sel", "1.0", "end"))
+        svc_menu.add_separator()
+        svc_menu.add_command(label="Clear", command=lambda: self.service_log.delete("1.0", tk.END))
+
+        def show_svc_menu(event):
+            svc_menu.tk_popup(event.x_root, event.y_root)
+
+        self.service_log.bind("<Button-3>", show_svc_menu)
+
         upd_frame = ttk.LabelFrame(parent, text="Updates", padding=15)
         upd_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
 
@@ -356,7 +398,29 @@ class ZapretGUI:
     def _build_log_tab(self, parent):
         self.log_text = scrolledtext.ScrolledText(parent, font=("Consolas", 10), wrap=tk.WORD)
         self.log_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        ttk.Button(parent, text="Clear Log", command=lambda: self.log_text.delete("1.0", tk.END)).pack(pady=(0, 10))
+
+        menu = tk.Menu(self.log_text, tearoff=0)
+        menu.add_command(label="Copy", command=lambda: self.log_text.event_generate("<<Copy>>"))
+        menu.add_command(label="Select All", command=lambda: self.log_text.tag_add("sel", "1.0", "end"))
+        menu.add_separator()
+        menu.add_command(label="Clear", command=lambda: self.log_text.delete("1.0", tk.END))
+
+        def show_menu(event):
+            menu.tk_popup(event.x_root, event.y_root)
+
+        self.log_text.bind("<Button-3>", show_menu)
+        self.log_text.bind("<Control-a>", lambda e: self.log_text.tag_add("sel", "1.0", "end"))
+        self.log_text.bind("<Control-c>", lambda e: self.log_text.event_generate("<<Copy>>"))
+
+        btn_frame = ttk.Frame(parent)
+        btn_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+        ttk.Button(btn_frame, text="Copy All", command=self._copy_log_all).pack(side=tk.LEFT)
+        ttk.Button(btn_frame, text="Clear Log", command=lambda: self.log_text.delete("1.0", tk.END)).pack(side=tk.LEFT, padx=(10, 0))
+
+    def _copy_log_all(self):
+        self.root.clipboard_clear()
+        self.root.clipboard_append(self.log_text.get("1.0", tk.END))
+        self._log("Log copied to clipboard")
 
     def _log(self, msg):
         timestamp = time.strftime("%H:%M:%S")
@@ -495,19 +559,126 @@ class ZapretGUI:
             self.domain_text.delete(sel[0], sel[1])
 
     def _install_service(self):
-        self._log("Installing service...")
-        result = run_cmd(f'echo 1 | "{SERVICE_BAT}" install', timeout=30)
-        self.service_log.insert(tk.END, result + "\n")
+        name = self.strategy_var.get()
+        if not name:
+            messagebox.showwarning("Warning", "Select a strategy first")
+            return
+        if not is_admin():
+            messagebox.showerror("Error", "Run as Administrator to install service")
+            return
+        if not messagebox.askyesno("Confirm", f"Install service with strategy '{name}'?"):
+            return
+
+        self._log(f"Installing service: {name}")
+
+        bat_path = os.path.join(ZAPRET_DIR, f"{name}.bat")
+        try:
+            with open(bat_path, "r", encoding="utf-8", errors="replace") as f:
+                content = f.read()
+        except Exception as e:
+            self._log(f"Error reading {name}.bat: {e}")
+            return
+
+        # Join continuation lines (^ at end)
+        joined = ""
+        for line in content.split("\n"):
+            stripped = line.strip()
+            if stripped.endswith("^"):
+                joined += stripped[:-1].strip() + " "
+            else:
+                joined += stripped + " "
+
+        # Find winws.exe and extract args
+        lower = joined.lower()
+        idx = lower.find("winws.exe")
+        if idx == -1:
+            self._log("Could not find winws.exe in bat file")
+            return
+
+        args = joined[idx + len("winws.exe"):].strip()
+
+        # Replace batch variables
+        bin_sl = BIN_DIR.replace("\\", "/")
+        lists_sl = LISTS_DIR.replace("\\", "/")
+        args = args.replace("%BIN%", bin_sl + "/")
+        args = args.replace("%LISTS%", lists_sl + "/")
+        args = args.replace("%%GameFilterTCP%%", "")
+        args = args.replace("%%GameFilterUDP%%", "")
+        args = args.replace("%GameFilterTCP%", "")
+        args = args.replace("%GameFilterUDP%", "")
+        args = " ".join(args.split())
+
+        winws = os.path.join(BIN_DIR, "winws.exe")
+        bin_path = f'{winws} {args}'
+
+        self._log(f"binPath length: {len(bin_path)}")
+
+        # Enable TCP timestamps
+        run_cmd("netsh interface tcp set global timestamps=enabled")
+
+        # Stop old service
+        run_cmd("net stop zapret", timeout=10)
+        run_cmd("sc delete zapret", timeout=10)
+
+        # Stop old service
+        run_cmd("net stop zapret", timeout=10)
+        run_cmd("sc delete zapret", timeout=10)
+
+        # Create service - use subprocess list to avoid all shell escaping
+        winws = os.path.join(BIN_DIR, "winws.exe")
+        sc_args = ["sc", "create", "zapret",
+                   "binPath=", f'"{winws}" {args}',
+                   "DisplayName=", "zapret",
+                   "start=", "auto"]
+
+        self._log(f"Running sc create (list)...")
+        try:
+            r = subprocess.run(sc_args, capture_output=True, timeout=15)
+            out = r.stdout.decode("utf-8", errors="replace")
+            err = r.stderr.decode("utf-8", errors="replace")
+            result = out + err
+        except Exception as e:
+            result = str(e)
+        self._log(f"sc create: {result.strip()[:300]}")
+
+        # Description
+        subprocess.run(["sc", "description", "zapret", "Zapret DPI bypass software"],
+                       capture_output=True, timeout=10)
+
+        # Start
+        r = subprocess.run(["sc", "start", "zapret"], capture_output=True, timeout=15)
+        result2 = r.stdout.decode("utf-8", errors="replace") + r.stderr.decode("utf-8", errors="replace")
+        self._log(f"sc start: {result2.strip()[:200]}")
+
+        run_cmd(f'reg add "HKLM\\System\\CurrentControlSet\\Services\\zapret" /v zapret-discord-youtube /t REG_SZ /d "{name}" /f')
+
+        self.service_log.insert(tk.END, f"--- Install {name} ---\nsc create: {result.strip()[:300]}\nsc start: {result2.strip()[:200]}\n")
         self.service_log.see(tk.END)
-        self._refresh_status()
+        self.root.after(2000, self._refresh_status)
 
     def _remove_services(self):
-        if messagebox.askyesno("Confirm", "Remove zapret service?"):
-            self._log("Removing service...")
-            result = run_cmd(f'echo 1 | "{SERVICE_BAT}" remove', timeout=30)
-            self.service_log.insert(tk.END, result + "\n")
-            self.service_log.see(tk.END)
-            self._refresh_status()
+        if not is_admin():
+            messagebox.showerror("Error", "Run as Administrator to remove services")
+            return
+        if not messagebox.askyesno("Confirm", "Remove zapret service and WinDivert?"):
+            return
+
+        self._log("Removing service...")
+        lines = []
+
+        for cmd in ["net stop zapret", "sc delete zapret", "taskkill /IM winws.exe /F",
+                     "net stop WinDivert", "sc delete WinDivert",
+                     "net stop WinDivert14", "sc delete WinDivert14"]:
+            out = run_cmd(cmd, timeout=15).strip()
+            lines.append(f"{cmd}: {out}" if out else f"{cmd}: OK")
+
+        self.service_log.insert(tk.END, "\n".join(lines) + "\n")
+        self.service_log.see(tk.END)
+        self._log("Service removed")
+        self.active_strategy = None
+        self.btn_start.config(state=tk.NORMAL)
+        self.btn_stop.config(state=tk.DISABLED)
+        self.root.after(1000, self._refresh_status)
 
     def _check_service_status(self):
         svc = get_service_status()
