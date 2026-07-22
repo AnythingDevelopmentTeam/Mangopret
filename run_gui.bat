@@ -1,8 +1,10 @@
 @echo off
 chcp 65001 > nul
-cd /d "%~dp0"
-python gui\app.py
+cd /d "%~dp0gui"
+python main.py %*
 if %errorlevel% neq 0 (
-    echo Python not found. Install Python 3.8+ from https://www.python.org/downloads/
+    echo.
+    echo If Python is not installed, install it from https://python.org
+    echo Then run: pip install -r gui\requirements.txt
     pause
 )

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Mangopret
+Comment=Cross-platform DPI bypass manager
+Exec=python3 gui/main.py
+Icon=mangopret
+Terminal=false
+Type=Application
+Categories=Network;Utility;
+Keywords=Mangopret;zapret;dpi;bypass;discord;youtube;
