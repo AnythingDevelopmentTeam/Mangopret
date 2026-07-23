@@ -124,40 +124,6 @@
       "dpi-desync-split-seqovl-pattern": "{bin}/tls_clienthello_www_google_com.bin",
       "dpi-desync-fake-tls-mod": "rnd,dupsid,sni=www.google.com",
       "dpi-desync-fake-http": "{bin}/tls_clienthello_max_ru.bin"
-    },
-    {
-      "name": "IPSet TCP {game_filter_tcp}",
-      "filter-tcp": "{game_filter_tcp}",
-      "ipset": "{lists}/ipset-all.txt",
-      "ipset-exclude": [
-        "{lists}/ipset-exclude.txt",
-        "{lists}/ipset-exclude-user.txt"
-      ],
-      "dpi-desync": "fake,multisplit",
-      "dpi-desync-any-protocol": "1",
-      "dpi-desync-cutoff": "n3",
-      "dpi-desync-split-seqovl": "681",
-      "dpi-desync-split-pos": "1",
-      "dpi-desync-fooling": "badseq",
-      "dpi-desync-badseq-increment": "10000000",
-      "dpi-desync-repeats": "8",
-      "dpi-desync-split-seqovl-pattern": "{bin}/tls_clienthello_www_google_com.bin",
-      "dpi-desync-fake-tls-mod": "rnd,dupsid,sni=www.google.com",
-      "dpi-desync-fake-http": "{bin}/tls_clienthello_max_ru.bin"
-    },
-    {
-      "name": "IPSet UDP {game_filter_udp}",
-      "filter-udp": "{game_filter_udp}",
-      "ipset": "{lists}/ipset-all.txt",
-      "ipset-exclude": [
-        "{lists}/ipset-exclude.txt",
-        "{lists}/ipset-exclude-user.txt"
-      ],
-      "dpi-desync": "fake",
-      "dpi-desync-repeats": "10",
-      "dpi-desync-any-protocol": "1",
-      "dpi-desync-fake-unknown-udp": "{bin}/ACTIVE_GAME_UDP.bin",
-      "dpi-desync-cutoff": "n2"
     }
   ]
 }

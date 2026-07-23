@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
     QPushButton, QTextEdit, QLabel, QMessageBox,
     QProgressBar, QCheckBox, QScrollArea, QFrame,
-    QGridLayout,
+    QGridLayout, QComboBox,
 )
 from PyQt6.QtCore import pyqtSignal, Qt, QThread
 
@@ -32,11 +32,14 @@ class ServiceTab(QWidget):
         self.config = config
         self.list_manager = list_manager
         self._download_thread = None
-        self._strategy_provider = None
+        self._strategies = {}
         self._build_ui()
 
-    def set_strategy_provider(self, provider):
-        self._strategy_provider = provider
+    def set_strategies(self, strategies: dict):
+        self._strategies = strategies
+        self.svc_strategy_combo.clear()
+        for name in sorted(strategies.keys()):
+            self.svc_strategy_combo.addItem(name)
 
     def _build_ui(self):
         outer = QVBoxLayout(self)
@@ -66,6 +69,20 @@ class ServiceTab(QWidget):
 
         scroll.setWidget(container)
 
+    def _build_service_strategy_row(self, layout):
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Strategy:"))
+        self.svc_strategy_combo = QComboBox()
+        self.svc_strategy_combo.setMinimumWidth(200)
+        row.addWidget(self.svc_strategy_combo, 1)
+        layout.addLayout(row)
+
+    def _get_selected_strategy(self):
+        name = self.svc_strategy_combo.currentText()
+        if name and name in self._strategies:
+            return name, self._strategies[name]
+        return None, None
+
     def _build_linux_ui(self, layout):
         engine_group = QGroupBox("Zapret Engine")
         eg_layout = QVBoxLayout(engine_group)
@@ -94,13 +111,15 @@ class ServiceTab(QWidget):
         service_group = QGroupBox("Systemd Service")
         sv_layout = QVBoxLayout(service_group)
 
-        info2 = QLabel("Create and manage a systemd service for auto-start on boot")
+        info2 = QLabel("Install, update or remove a systemd service for auto-start on boot")
         sv_layout.addWidget(info2)
+
+        self._build_service_strategy_row(sv_layout)
 
         svc_grid = QGridLayout()
         svc_grid.setSpacing(6)
 
-        self.btn_create_svc = QPushButton("Create Service")
+        self.btn_create_svc = QPushButton("Install / Update Service")
         self.btn_create_svc.setMinimumHeight(32)
         self.btn_create_svc.clicked.connect(self._create_service)
         svc_grid.addWidget(self.btn_create_svc, 0, 0)
@@ -137,30 +156,6 @@ class ServiceTab(QWidget):
 
         layout.addWidget(service_group)
 
-        nftables_group = QGroupBox("iptables / nftables")
-        nf_layout = QVBoxLayout(nftables_group)
-
-        info3 = QLabel("Apply firewall rules to redirect traffic through nfqws")
-        nf_layout.addWidget(info3)
-
-        fw_grid = QGridLayout()
-        fw_grid.setSpacing(6)
-
-        self.btn_apply_rules = QPushButton("Apply Rules")
-        self.btn_apply_rules.setMinimumHeight(32)
-        self.btn_apply_rules.clicked.connect(self._apply_rules)
-        fw_grid.addWidget(self.btn_apply_rules, 0, 0)
-
-        self.btn_remove_rules = QPushButton("Remove Rules")
-        self.btn_remove_rules.setObjectName("stopBtn")
-        self.btn_remove_rules.setMinimumHeight(32)
-        self.btn_remove_rules.clicked.connect(self._remove_rules)
-        fw_grid.addWidget(self.btn_remove_rules, 0, 1)
-
-        nf_layout.addLayout(fw_grid)
-
-        layout.addWidget(nftables_group)
-
         desktop_group = QGroupBox("App Menu Entry")
         dt_layout = QVBoxLayout(desktop_group)
 
@@ -187,13 +182,15 @@ class ServiceTab(QWidget):
         service_group = QGroupBox("Windows Service")
         sv_layout = QVBoxLayout(service_group)
 
-        info = QLabel("Manage the Windows service (auto-start on boot)")
+        info = QLabel("Install, update or remove the Windows service (auto-start on boot)")
         sv_layout.addWidget(info)
+
+        self._build_service_strategy_row(sv_layout)
 
         svc_grid = QGridLayout()
         svc_grid.setSpacing(6)
 
-        self.btn_install_svc = QPushButton("Install Service")
+        self.btn_install_svc = QPushButton("Install / Update Service")
         self.btn_install_svc.setMinimumHeight(32)
         self.btn_install_svc.clicked.connect(self._install_service)
         svc_grid.addWidget(self.btn_install_svc, 0, 0)
@@ -312,24 +309,27 @@ class ServiceTab(QWidget):
     def _create_service(self):
         if not self.platform.is_linux:
             return
-        if not self._strategy_provider:
-            QMessageBox.warning(self, "Error", "No strategy selected")
+
+        name, strategy = self._get_selected_strategy()
+        if not strategy:
+            QMessageBox.warning(self, "Error", "Select a strategy first")
             return
 
-        result = self._strategy_provider()
-        if not result:
-            QMessageBox.warning(self, "Error", "No strategy selected")
-            return
-
-        strategy_name, strategy_cmd = result
-        ok = self.platform.create_systemd_service(strategy_cmd, strategy_name)
+        ok = self.platform.create_systemd_service(strategy, name)
         if ok:
-            self.diag_text.append(f"Systemd service created for: {strategy_name}")
-            self.log_signal.emit(f"Systemd service created for: {strategy_name}")
-            self.refresh_status()
+            self.diag_text.append(f"Service installed/updated: {name}")
+            self.log_signal.emit(f"Service installed/updated: {name}")
+
+            was_running = self.platform.get_service_status() == "running"
+            if was_running:
+                self.platform.service_stop()
+                self.platform.service_start()
+                self.diag_text.append("Service restarted with new config")
+                self.log_signal.emit("Service restarted with new config")
         else:
             self.diag_text.append("Failed to create systemd service (need root?)")
             self.log_signal.emit("Failed to create systemd service")
+        self.refresh_status()
 
     def _remove_service(self):
         reply = QMessageBox.question(
@@ -339,41 +339,17 @@ class ServiceTab(QWidget):
         if reply != QMessageBox.StandardButton.Yes:
             return
 
-        if self.platform.is_windows:
-            self._remove_windows_service()
-        else:
-            self._remove_linux_service()
-
-    def _remove_windows_service(self):
-        import subprocess
-        _CREATE_NO_WINDOW = 0x08000000
-        for svc in ["zapret", "WinDivert"]:
-            subprocess.run(
-                ["net", "stop", svc], capture_output=True,
-                creationflags=_CREATE_NO_WINDOW,
-            )
-            subprocess.run(
-                ["sc", "delete", svc], capture_output=True,
-                creationflags=_CREATE_NO_WINDOW,
-            )
-        self.platform.kill_all()
-        self.log_signal.emit("Windows services removed")
-        self.refresh_status()
-
-    def _remove_linux_service(self):
-        ok, err = self.platform.remove_systemd_service()
+        ok, err = self.platform.service_remove()
         if ok:
-            self.diag_text.append("Systemd service removed")
-            self.log_signal.emit("Systemd service removed")
+            self.diag_text.append("Service removed")
+            self.log_signal.emit("Service removed")
+            self.platform.kill_all()
         else:
             self.diag_text.append(f"Failed to remove: {err}")
         self.refresh_status()
 
     def _start_service(self):
-        if self.platform.is_windows:
-            ok, err = self.platform.start_windows_service()
-        else:
-            ok, err = self.platform.start_systemd_service()
+        ok, err = self.platform.service_start()
 
         if ok:
             self.diag_text.append("Service started")
@@ -384,10 +360,7 @@ class ServiceTab(QWidget):
         self.refresh_status()
 
     def _stop_service(self):
-        if self.platform.is_windows:
-            ok, err = self.platform.stop_windows_service()
-        else:
-            ok, err = self.platform.stop_systemd_service()
+        ok, err = self.platform.service_stop()
 
         if ok:
             self.diag_text.append("Service stopped")
@@ -398,44 +371,15 @@ class ServiceTab(QWidget):
         self.refresh_status()
 
     def _install_service(self):
-        if not self.platform.is_windows:
-            return
-        import subprocess
-        _CREATE_NO_WINDOW = 0x08000000
+        name, strategy = self._get_selected_strategy()
 
-        bin_path = str(self.platform.binary)
-        cmd_args = ""
-
-        if self._strategy_provider:
-            result = self._strategy_provider()
-            if result:
-                strategy_name, strategy_cmd = result
-                cmd_args = " ".join(str(x) for x in strategy_cmd[1:])
-                self.log_signal.emit(f"Installing service with strategy: {strategy_name}")
-
-        try:
-            if cmd_args:
-                sc_cmd = f'"{bin_path}" {cmd_args}'
-                r = subprocess.run(
-                    ["sc", "create", "zapret", "binPath=", sc_cmd,
-                     "DisplayName=", "zapret", "start=", "auto"],
-                    capture_output=True, text=True, timeout=10,
-                    creationflags=_CREATE_NO_WINDOW,
-                )
-            else:
-                r = subprocess.run(
-                    ["sc", "create", "zapret", "binPath=", f'"{bin_path}"',
-                     "DisplayName=", "zapret", "start=", "auto"],
-                    capture_output=True, text=True, timeout=10,
-                    creationflags=_CREATE_NO_WINDOW,
-                )
-            self.diag_text.append(r.stdout)
-            if r.stderr:
-                self.diag_text.append(r.stderr)
-            self.log_signal.emit("Service installation attempted")
-            self.refresh_status()
-        except Exception as e:
-            self.diag_text.append(f"Error: {e}")
+        ok, err = self.platform.service_install(strategy, name or "")
+        if ok:
+            self.diag_text.append(f"Service installed/updated: {name}" if name else "Service installed")
+            self.log_signal.emit(f"Service installed: {name}")
+        else:
+            self.diag_text.append(f"Failed: {err}" if err else "Failed to install service")
+        self.refresh_status()
 
     def _check_service(self):
         status = self.platform.get_service_status()
@@ -461,32 +405,6 @@ class ServiceTab(QWidget):
         else:
             self.diag_text.append(f"Failed to change auto-start: {err}")
         self.refresh_status()
-
-    def _apply_rules(self):
-        if not self.platform.is_linux:
-            return
-
-        wf_tcp = self.config.get("wf_tcp", "80,443,2053,2083,2087,2096,8443")
-        wf_udp = self.config.get("wf_udp", "443,19294-19344,50000-50100")
-        queue_num = self.config.get("nfqueue_num", "200")
-
-        results = self.platform.install_iptables_rules(wf_tcp, wf_udp, queue_num)
-        for rule, ok, err in results:
-            if ok:
-                self.diag_text.append(f"OK: {rule}")
-            else:
-                self.diag_text.append(f"FAIL: {rule} -> {err}")
-        self.log_signal.emit(f"Applied {len(results)} iptables rules")
-
-    def _remove_rules(self):
-        if not self.platform.is_linux:
-            return
-        ok = self.platform.remove_iptables_rules()
-        if ok:
-            self.diag_text.append("iptables rules removed")
-            self.log_signal.emit("iptables rules removed")
-        else:
-            self.diag_text.append("Failed to remove iptables rules")
 
     def _install_desktop_entry(self):
         ok, msg = self.platform.create_desktop_entry()

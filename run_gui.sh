@@ -2,7 +2,9 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SCRIPT_FULL="$SCRIPT_DIR/$(basename "$0")"
 
-if [ "$(id -u)" -ne 0 ]; then
+# Skip root escalation when launched with --minimized from autostart.
+# Tray-only mode needs X11 access which breaks under root.
+if [ "$(id -u)" -ne 0 ] && [[ "$*" != *"--minimized"* ]]; then
     exec sudo -E "$SCRIPT_FULL" "$@"
 fi
 
@@ -17,10 +19,10 @@ if [ -z "$PYTHON" ]; then
     echo "Python3 not found."
     echo ""
     echo "Install it:"
-    echo "  Ubuntu/Debian: sudo apt install python3"
-    echo "  Arch:          sudo pacman -S python"
-    echo "  Fedora:        sudo dnf install python3"
-    echo "  openSUSE:      sudo zypper install python3"
+    echo " Ubuntu/Debian: sudo apt install python3"
+    echo " Arch: sudo pacman -S python"
+    echo " Fedora: sudo dnf install python3"
+    echo " openSUSE: sudo zypper install python3"
     exit 1
 fi
 
@@ -83,7 +85,7 @@ if ! "$PYTHON" -c "import PyQt6" 2>/dev/null; then
     if ! "$PYTHON" -c "import PyQt6" 2>/dev/null; then
         echo ""
         echo "Could not install PyQt6. Falling back to CLI mode."
-        echo "Run:  ./run.sh <command>"
+        echo "Run: ./run.sh <command>"
         echo ""
         "$PYTHON" main.py "$@"
         exit $?

@@ -112,37 +112,6 @@
       "dpi-desync-fooling": "badseq",
       "dpi-desync-badseq-increment": "2",
       "dpi-desync-fake-http": "{bin}/tls_clienthello_max_ru.bin"
-    },
-    {
-      "name": "IPSet TCP {game_filter_tcp}",
-      "filter-tcp": "{game_filter_tcp}",
-      "ipset": "{lists}/ipset-all.txt",
-      "ipset-exclude": [
-        "{lists}/ipset-exclude.txt",
-        "{lists}/ipset-exclude-user.txt"
-      ],
-      "dpi-desync": "fake",
-      "dpi-desync-any-protocol": "1",
-      "dpi-desync-cutoff": "n3",
-      "dpi-desync-fake-tls-mod": "none",
-      "dpi-desync-repeats": "6",
-      "dpi-desync-fooling": "badseq",
-      "dpi-desync-badseq-increment": "2",
-      "dpi-desync-fake-http": "{bin}/tls_clienthello_max_ru.bin"
-    },
-    {
-      "name": "IPSet UDP {game_filter_udp}",
-      "filter-udp": "{game_filter_udp}",
-      "ipset": "{lists}/ipset-all.txt",
-      "ipset-exclude": [
-        "{lists}/ipset-exclude.txt",
-        "{lists}/ipset-exclude-user.txt"
-      ],
-      "dpi-desync": "fake",
-      "dpi-desync-repeats": "12",
-      "dpi-desync-any-protocol": "1",
-      "dpi-desync-fake-unknown-udp": "{bin}/ACTIVE_GAME_UDP.bin",
-      "dpi-desync-cutoff": "n2"
     }
   ]
 }

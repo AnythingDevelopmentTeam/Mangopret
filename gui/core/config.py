@@ -3,18 +3,15 @@ import json
 from pathlib import Path
 from typing import Optional
 
-
 class Config:
     _defaults = {
-        "game_filter": "disabled",
-        "game_filter_tcp": "12",
-        "game_filter_udp": "12",
         "ipset_mode": "loaded",
         "check_updates": True,
         "last_strategy": "",
         "minimize_to_tray": True,
+        "start_minimized": False,
         "auto_start": False,
-        "theme": "dark",
+        "theme": "system",
         "nfqueue_num": "200",
         "linux_zapret_path": "",
     }
@@ -53,28 +50,6 @@ class Config:
         self._data[key] = value
         self.save()
 
-    @property
-    def game_filter_tcp(self) -> str:
-        mode = self._data.get("game_filter", "disabled")
-        if mode == "all":
-            return "1024-65535"
-        elif mode == "tcp":
-            return "1024-65535"
-        return "12"
-
-    @property
-    def game_filter_udp(self) -> str:
-        mode = self._data.get("game_filter", "disabled")
-        if mode == "all":
-            return "1024-65535"
-        elif mode == "udp":
-            return "1024-65535"
-        return "12"
-
-    def set_game_filter(self, mode: str):
-        self._data["game_filter"] = mode
-        self.save()
-
     def get_ipset_mode(self, lists_dir: str) -> str:
         ipset_file = Path(lists_dir) / "ipset-all.txt"
         if not ipset_file.exists():
@@ -87,9 +62,10 @@ class Config:
                     return "none"
                 if content == "":
                     return "any"
-            return "loaded"
+                return "loaded"
         except Exception:
             return "none"
+        return "none"
 
     def set_ipset_mode(self, mode: str, lists_dir: str):
         ipset_file = Path(lists_dir) / "ipset-all.txt"
@@ -102,7 +78,7 @@ class Config:
                     if backup_file.exists():
                         backup_file.unlink()
                     ipset_file.rename(backup_file)
-            ipset_file.write_text("203.0.113.113/32\n", encoding="utf-8")
+                    ipset_file.write_text("203.0.113.113/32\n", encoding="utf-8")
         elif mode == "any":
             if ipset_file.exists() and ipset_file.stat().st_size > 100:
                 content = ipset_file.read_text(encoding="utf-8")
@@ -110,7 +86,7 @@ class Config:
                     if backup_file.exists():
                         backup_file.unlink()
                     ipset_file.rename(backup_file)
-            ipset_file.write_text("", encoding="utf-8")
+                    ipset_file.write_text("", encoding="utf-8")
         elif mode == "loaded":
             if backup_file.exists() and backup_file.stat().st_size > 100:
                 if ipset_file.exists():

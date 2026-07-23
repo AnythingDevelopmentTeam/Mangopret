@@ -1,34 +1,38 @@
+import sys
+import os
+import subprocess
+
 from PyQt6.QtWidgets import (
     QMainWindow, QTabWidget, QStatusBar, QVBoxLayout, QWidget,
-    QSystemTrayIcon, QApplication, QMessageBox,
+    QApplication, QMessageBox,
 )
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QIcon
 
 from .tabs.main_tab import MainTab
 from .tabs.lists_tab import ListsTab
-from .tabs.service_tab import ServiceTab
 from .tabs.log_tab import LogTab
 from .tray import SystemTray
 from core.strategy import Strategy, StrategyParser
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, platform_info, config, list_manager):
+    def __init__(self, platform_info, config, list_manager, start_minimized=False):
         super().__init__()
         self.platform = platform_info
         self.config = config
         self.list_manager = list_manager
+        self._start_minimized = start_minimized
 
         self.strategies = {}
         self.strategy_list = []
-        self.active_process = None
         self.active_strategy_name = ""
 
         self.setWindowTitle("Mangopret")
         self.setMinimumSize(640, 480)
         self.resize(900, 650)
 
+        self._ensure_zapret()
         self._load_strategies()
         self._build_ui()
         self._setup_tray()
@@ -42,8 +46,69 @@ class MainWindow(QMainWindow):
                 self.strategy_combo.setCurrentIndex(idx)
                 self._on_strategy_changed(idx)
 
-        if self.config.get("auto_start", False) and last:
-            QTimer.singleShot(1000, lambda: self._start_strategy(last))
+    def _require_root(self, action, payload=None):
+        if self._start_minimized:
+            return True
+        if self.platform.IS_ROOT:
+            return True
+
+        if self.platform.is_windows:
+            return self._elevate_windows(action, payload)
+
+        return self._elevate_linux(action, payload)
+
+    def _elevate_linux(self, action, payload=None):
+        self.config.set("_pending_root_action", {"action": action, "payload": payload or {}})
+        script = sys.argv[0]
+        args = sys.argv[1:]
+        try:
+            subprocess.Popen(
+                ["pkexec", "--disable-internal-agent", script] + args,
+                env={
+                    **os.environ,
+                    "DISPLAY": os.environ.get("DISPLAY", ""),
+                    "XAUTHORITY": os.environ.get("XAUTHORITY", ""),
+                },
+            )
+        except Exception as e:
+            QMessageBox.critical(self, "Elevation failed", str(e))
+            return False
+        QApplication.quit()
+        return False
+
+    def _elevate_windows(self, action, payload=None):
+        try:
+            import ctypes
+            script = os.path.abspath(sys.argv[0])
+            gui_dir = os.path.dirname(script)
+            args = " ".join(f'"{a}"' for a in sys.argv[1:])
+
+            ret = ctypes.windll.shell32.ShellExecuteW(
+                None, "runas", sys.executable, f'"{script}" {args}',
+                gui_dir, 1,
+            )
+            if ret <= 32:
+                QMessageBox.critical(self, "Elevation failed",
+                                     "User denied UAC elevation or an error occurred.")
+                return False
+        except Exception as e:
+            QMessageBox.critical(self, "Elevation failed", str(e))
+            return False
+        QApplication.quit()
+        return False
+
+    def _ensure_zapret(self):
+        if self.platform.is_zapret_installed():
+            return
+        reply = QMessageBox.question(
+            None, "Zapret not found",
+            "zapret is not installed.\nDownload and install it now?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            ok = self.platform.install_zapret(callback=lambda m: print(f"  {m}"))
+            if not ok:
+                QMessageBox.warning(None, "Error", "Installation failed. Check the log.")
 
     def _load_strategies(self):
         strategies_dir = self.platform.strategies_dir
@@ -72,32 +137,31 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         layout.addWidget(self.tabs)
 
-        self.main_tab = MainTab()
+        self.main_tab = MainTab(
+            platform=self.platform,
+            config=self.config,
+            list_manager=self.list_manager,
+        )
         self.main_tab.set_strategies(
             [(name, sid) for name, sid in self.strategy_list]
         )
+        self.main_tab.set_strategies_dict(self.strategies)
         self.main_tab.start_requested.connect(self._start_strategy)
         self.main_tab.stop_requested.connect(self._stop_strategy)
-        self.main_tab.game_filter_changed.connect(self._on_game_filter)
         self.main_tab.ipset_changed.connect(self._on_ipset)
         self.main_tab.refresh_requested.connect(self._refresh_status)
-        self.main_tab.diagnostics_requested.connect(self._run_diagnostics)
         self.main_tab.test_requested.connect(self._run_tests)
+        self.main_tab.log_signal.connect(self._log)
         self.strategy_combo = self.main_tab.strategy_combo
         self.strategy_combo.currentIndexChanged.connect(self._on_strategy_changed)
 
         self.lists_tab = ListsTab(self.list_manager)
         self.lists_tab.log_signal.connect(self._log)
 
-        self.service_tab = ServiceTab(self.platform, self.config, self.list_manager)
-        self.service_tab.log_signal.connect(self._log)
-        self.service_tab.set_strategy_provider(self._get_current_strategy_cmd)
-
         self.log_tab = LogTab()
 
         self.tabs.addTab(self.main_tab, "  Main  ")
         self.tabs.addTab(self.lists_tab, "  Lists  ")
-        self.tabs.addTab(self.service_tab, "  Service  ")
         self.tabs.addTab(self.log_tab, "  Log  ")
 
         self.status_bar = QStatusBar()
@@ -117,9 +181,7 @@ class MainWindow(QMainWindow):
         self.tray.start_requested.connect(self._start_strategy)
         self.tray.stop_requested.connect(self._stop_strategy)
         self.tray.quit_requested.connect(self._quit)
-        self.tray.autostart_changed.connect(self._on_autostart)
 
-        self.tray.set_autostart(self.config.get("auto_start", False))
         self.tray.show()
 
     def _setup_timer(self):
@@ -143,100 +205,143 @@ class MainWindow(QMainWindow):
         if not name or name not in self.strategies:
             return
 
-        self._stop_strategy()
-
-        strategy = self.strategies[name]
-        args = strategy.build_command(
-            binary_path=str(self.platform.binary),
-            bin_dir=str(self.platform.bin_dir),
-            lists_dir=str(self.platform.lists_dir),
-            game_filter_tcp=self.config.game_filter_tcp,
-            game_filter_udp=self.config.game_filter_udp,
-            is_windows=self.platform.is_windows,
-        )
-
-        self._log(f"Starting: {name}")
-        self._log(f"Command: {' '.join(str(x) for x in args)}")
+        if not self._require_root("start", {"strategy": name}):
+            return
 
         if self.platform.is_linux:
-            wf_tcp = self.config.get("wf_tcp", "80,443,2053,2083,2087,2096,8443")
-            wf_udp = self.config.get("wf_udp", "443,19294-19344,50000-50100")
-            queue_num = self.config.get("nfqueue_num", "200")
-            results = self.platform.install_iptables_rules(wf_tcp, wf_udp, queue_num)
-            applied = sum(1 for _, ok, _ in results if ok)
-            self._log(f"iptables: {applied}/{len(results)} rules applied")
+            svc_status = self.platform.get_service_status()
+            if svc_status in ("running", "starting"):
+                if self.active_strategy_name == name:
+                    self._log(f"Service already running with strategy: {name}")
+                    self.status_bar.showMessage(f"Already active: {name}")
+                    return
+                self._log(f"Switching from {self.active_strategy_name} to {name}...")
+                self.platform.service_stop()
+                import time
+                time.sleep(1)
 
-        self.active_process = self.platform.start_service(name, args)
-        self.active_strategy_name = name
-        self.main_tab.set_active(True, name)
-        self.tray.set_active(True, name)
-        self.status_bar.showMessage(f"Active: {name}")
+        strategy = self.strategies[name]
+
+        self._log(f"Creating service: {name}")
+
+        if self.platform.is_linux:
+            ok = self.platform.create_systemd_service(strategy, name)
+            if not ok:
+                self._log("FAILED to create service")
+                self.status_bar.showMessage("Failed to create service")
+                return
+
+            ok, err = self.platform.service_start()
+            if ok:
+                self.active_strategy_name = name
+                self.main_tab.set_active(True, name)
+                self.tray.set_active(True, name)
+                self.status_bar.showMessage(f"Active: {name}")
+                self.tray.show_message("Mangopret", f"Service started: {name}")
+                self._log(f"Service started: {name}")
+            else:
+                self._log(f"FAILED to start service: {err}")
+                self.status_bar.showMessage("Service start failed")
+        else:
+            ok, err = self.platform.service_install(strategy, name)
+            if ok:
+                ok2, err2 = self.platform.service_start()
+                if ok2:
+                    self.active_strategy_name = name
+                    self.main_tab.set_active(True, name)
+                    self.tray.set_active(True, name)
+                    self.status_bar.showMessage(f"Active: {name}")
+                    self.tray.show_message("Mangopret", f"Service started: {name}")
+                    self._log(f"Service started: {name}")
+                else:
+                    self._log(f"FAILED to start service: {err2}")
+                    self.status_bar.showMessage("Service start failed")
+            else:
+                self._log(f"FAILED to install service: {err}")
+                self.status_bar.showMessage("Service install failed")
 
         QTimer.singleShot(2000, self._refresh_status)
-        self.tray.show_message("Mangopret", f"Strategy started: {name}")
 
     def _stop_strategy(self):
-        self.platform.stop_process(self.active_process)
-        self.active_process = None
+        if not self._require_root("stop"):
+            return
+        self._log("Stopping service...")
+        self.platform.service_stop()
         self.active_strategy_name = ""
         self.main_tab.set_active(False)
         self.tray.set_active(False)
         self.status_bar.showMessage("Stopped")
-        self._log("Strategy stopped")
-        if self.platform.is_linux:
-            self.platform.remove_iptables_rules()
-            self._log("iptables rules cleaned up")
+        self._log("Service stopped")
         QTimer.singleShot(1000, self._refresh_status)
 
-    def _refresh_status(self):
-        running = self.platform.is_process_running()
-        service_status = self.platform.get_service_status()
-        gf = self.config.get("game_filter", "disabled")
-        ipset = self.config.get_ipset_mode(str(self.platform.lists_dir))
+    def _install_service_from_payload(self, payload):
+        name = payload.get("strategy") or self.main_tab.get_selected_strategy()
+        if name and name in self.strategies:
+            self._create_service_for(name)
 
-        if running:
-            self.main_tab.set_status("process", "RUNNING", "running")
+    def _remove_service_confirm(self):
+        self._remove_service_for(self.main_tab.get_selected_strategy())
+
+    def _set_autostart_force(self, enabled):
+        if not self.platform.is_linux:
+            return
+        if enabled:
+            ok, err = self.platform.enable_systemd_service()
         else:
-            self.main_tab.set_status("process", "STOPPED", "stopped")
+            ok, err = self.platform.disable_systemd_service()
+        state = "enabled" if enabled else "disabled"
+        if ok:
+            self._log(f"Auto-start {state}")
+            self.status_bar.showMessage(f"Auto-start {state}")
+        else:
+            self._log(f"Failed to change auto-start: {err}")
+        self._refresh_status()
+
+    def _install_zapret_root(self):
+        self._ensure_zapret()
+
+    def _update_ipset_root(self):
+        self._update_ipset()
+
+    def _update_hosts_root(self):
+        self._update_hosts()
+
+    def _refresh_status(self):
+        service_status = self.platform.get_service_status()
+        ipset = self.config.get_ipset_mode(str(self.platform.lists_dir))
 
         svc_display = service_status.upper()
         svc_style = "ok" if service_status == "running" else (
-            "error" if service_status == "stopped" else "warn"
+            "error" if service_status in ("stopped", "not_installed") else "warn"
         )
+
         self.main_tab.set_status("service", svc_display, svc_style)
-        self.main_tab.set_status("game_filter", gf.upper())
         self.main_tab.set_status("ipset", ipset.upper())
 
-        self.main_tab.set_game_filter(gf)
         self.main_tab.set_ipset(ipset)
+        self.main_tab.refresh_service_status()
+        self.main_tab.refresh_startup_status()
 
-        self.service_tab.refresh_status()
-
-        if not running and self.active_strategy_name:
+        if service_status == "running" and self.active_strategy_name:
+            pass
+        elif service_status != "running" and self.active_strategy_name:
             self.active_strategy_name = ""
             self.main_tab.set_active(False)
             self.tray.set_active(False)
+            self.status_bar.showMessage("Service stopped")
 
-    def _on_game_filter(self, mode: str):
-        self.config.set_game_filter(mode)
-        self._log(f"Game filter: {mode}")
-        self._refresh_status()
+    def _log(self, message: str):
+        self.log_tab.log(message)
 
     def _on_ipset(self, mode: str):
         self.config.set_ipset_mode(mode, str(self.platform.lists_dir))
         self._log(f"IPSet mode: {mode}")
         self._refresh_status()
 
-    def _run_diagnostics(self):
-        result = self.list_manager.run_diagnostics(self.platform.is_windows)
-        self._log(f"Diagnostics:\n{result}")
-        self.tabs.setCurrentIndex(3)
-
     def _run_tests(self):
         if self.platform.is_windows:
             test_file = self.platform.utils_dir / "test zapret.ps1"
             if test_file.exists():
-                import subprocess
                 subprocess.Popen(
                     ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
                      "-File", str(test_file)],
@@ -248,37 +353,14 @@ class MainWindow(QMainWindow):
         else:
             self._log("Tests not available on Linux yet")
 
-    def _get_current_strategy_cmd(self):
-        name = self.main_tab.get_selected_strategy()
-        if not name or name not in self.strategies:
-            return None
-        strategy = self.strategies[name]
-        args = strategy.build_command(
-            binary_path=str(self.platform.binary),
-            bin_dir=str(self.platform.bin_dir),
-            lists_dir=str(self.platform.lists_dir),
-            game_filter_tcp=self.config.game_filter_tcp,
-            game_filter_udp=self.config.game_filter_udp,
-            is_windows=self.platform.is_windows,
-        )
-        return (name, args)
-
-    def _log(self, message: str):
-        self.log_tab.log(message)
-
     def _show_window(self):
         self.showNormal()
         self.raise_()
         self.activateWindow()
 
     def _quit(self):
-        self._stop_strategy()
         self.tray.hide()
         QApplication.instance().quit()
-
-    def _on_autostart(self, enabled):
-        self.config.set("auto_start", enabled)
-        self._log(f"Auto-start: {'enabled' if enabled else 'disabled'}")
 
     def closeEvent(self, event):
         if self.config.get("minimize_to_tray", True) and self.tray.tray.isVisible():

@@ -57,7 +57,6 @@ def cmd_uninstall(args):
     p = get_platform()
     print("Stopping zapret ...")
     p.kill_all()
-    p.remove_iptables_rules()
 
     print("Removing systemd service ...")
     p.remove_systemd_service()
@@ -92,40 +91,74 @@ def cmd_start(args):
 
     _stop_running(p)
 
+    if p.is_linux:
+        svc_status = p.get_service_status()
+        if svc_status in ("running", "starting"):
+            print("Stopping systemd service to avoid conflict...")
+            p.service_stop()
+
     strategy = strategies[name]
     args_list = strategy.build_command(
         binary_path=str(p.binary),
         bin_dir=str(p.bin_dir),
         lists_dir=str(p.lists_dir),
-        game_filter_tcp=config.game_filter_tcp,
-        game_filter_udp=config.game_filter_udp,
         is_windows=p.is_windows,
     )
 
     print(f"Starting: {name}")
     if p.is_linux:
-        wf_tcp = config.get("wf_tcp", "80,443,2053,2083,2087,2096,8443")
-        wf_udp = config.get("wf_udp", "443,19294-19344,50000-50100")
-        queue_num = config.get("nfqueue_num", "200")
-        results = p.install_iptables_rules(wf_tcp, wf_udp, queue_num)
-        applied = sum(1 for _, ok, _ in results if ok)
-        print(f"iptables: {applied}/{len(results)} rules applied")
-
-    proc = p.start_service(name, args_list)
-    if proc:
-        print(f"Process started (PID: {proc.pid})")
         config.set("last_strategy", name)
+        print(f"Writing zapret config and starting service...")
+        ok = p.create_systemd_service(strategy, name)
+        if not ok:
+            print("Failed to write zapret config")
+            sys.exit(1)
+        ok, err = p.service_start()
+        if ok:
+            print(f"Service started with strategy: {name}")
+        else:
+            print(f"Failed to start service: {err}")
+            sys.exit(1)
     else:
-        print("Failed to start process")
-        sys.exit(1)
+        proc = p.start_process(args_list)
+        if proc:
+            import time
+            time.sleep(1.5)
+            if proc.poll() is not None:
+                print(f"FAILED: nfqws crashed immediately (exit code: {proc.returncode})")
+                sys.exit(1)
+            print(f"Process started (PID: {proc.pid})")
+            config.set("last_strategy", name)
+        else:
+            print("Failed to start process")
+            sys.exit(1)
 
 
 def cmd_stop(args):
     p = get_platform()
     print("Stopping ...")
+    if p.is_linux:
+        ok, err = p.service_stop()
+        print("Service stopped." if ok else f"Failed: {err}")
+    else:
+        p.kill_all()
+        print("Stopped.")
+
+
+def cmd_fix(args):
+    p = get_platform()
+    print("Emergency: fixing network...")
     p.kill_all()
-    p.remove_iptables_rules()
-    print("Stopped.")
+    p.service_stop()
+    if p.is_linux:
+        init_script = p.zapret_dir / "init.d" / "sysv" / "zapret"
+        if init_script.exists():
+            subprocess.run(
+                ["bash", str(init_script), "stop-fw"],
+                capture_output=True, timeout=10,
+            )
+            print("iptables rules cleaned via zapret init")
+    print("All nfqws killed, network cleaned.")
 
 
 def cmd_status(args):
@@ -143,9 +176,7 @@ def cmd_status(args):
     svc = p.get_service_status()
     print(f"Service: {svc}")
 
-    gf = config.get("game_filter", "disabled")
     ipset = config.get_ipset_mode(str(p.lists_dir))
-    print(f"Game filter: {gf}")
     print(f"IPSet: {ipset}")
 
 
@@ -191,29 +222,24 @@ def cmd_service(args):
         strategies = _load_strategies(p)
         if name in strategies:
             strategy = strategies[name]
-            cmd_list = strategy.build_command(
-                binary_path=str(p.binary),
-                bin_dir=str(p.bin_dir),
-                lists_dir=str(p.lists_dir),
-                game_filter_tcp=config.game_filter_tcp,
-                game_filter_udp=config.game_filter_udp,
-                is_windows=p.is_windows,
-            )
-            ok = p.create_systemd_service(cmd_list, name)
+            ok, err = p.service_install(strategy, name)
             if ok:
-                print(f"Systemd service created for: {name}")
+                print(f"Service created for: {name}")
             else:
-                print("Failed to create service (need root?)")
+                print(f"Failed: {err}" if err else "Failed to create service")
         else:
             print("No strategy selected. Start a strategy first, then install service.")
     elif action == "remove":
-        ok, err = p.remove_systemd_service()
+        ok, err = p.service_remove()
         print("Service removed." if ok else f"Failed: {err}")
     elif action == "start":
-        ok, err = p.start_systemd_service()
+        if p.is_process_running():
+            print("Stopping GUI-managed process to avoid conflict...")
+            p.kill_all()
+        ok, err = p.service_start()
         print("Service started." if ok else f"Failed: {err}")
     elif action == "stop":
-        ok, err = p.stop_systemd_service()
+        ok, err = p.service_stop()
         print("Service stopped." if ok else f"Failed: {err}")
     elif action == "enable":
         ok, err = p.enable_systemd_service()
@@ -268,6 +294,83 @@ def cmd_diagnostics(args):
     print(result)
 
 
+def cmd_convert(args):
+    from core.strategy import StrategyParser, Strategy
+    from pathlib import Path
+
+    input_path = Path(args.input)
+    output_dir = Path(args.output)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    files_to_convert = []
+
+    if input_path.is_file():
+        files_to_convert.append(input_path)
+    elif input_path.is_dir():
+        for ext in ("*.bat", "*.strategy"):
+            files_to_convert.extend(sorted(input_path.glob(ext)))
+        if not files_to_convert:
+            print(f"No .bat or .strategy files found in {input_path}")
+            return
+    else:
+        print(f"Not found: {input_path}")
+        return
+
+    converted = 0
+    failed = 0
+
+    for f in files_to_convert:
+        print(f"  {f.name} ... ", end="", flush=True)
+
+        if f.suffix == ".bat":
+            strategy = StrategyParser._from_bat(f)
+        elif f.suffix == ".strategy":
+            strategy = StrategyParser._from_json(f)
+        else:
+            print("SKIP (unknown type)")
+            continue
+
+        if not strategy or not strategy.rules:
+            print("FAILED (no rules parsed)")
+            failed += 1
+            continue
+
+        out_path = output_dir / f"{strategy.id}.strategy"
+        StrategyParser.to_strategy_file(strategy, out_path)
+        print(f"OK -> {out_path.name} ({len(strategy.rules)} rules)")
+        converted += 1
+
+    print(f"\nDone: {converted} converted, {failed} failed")
+    print(f"Output: {output_dir}")
+
+
+def cmd_autostart(args):
+    p = get_platform()
+    action = args.action
+
+    if action == "enable":
+        ok, err = p.enable_startup()
+        if ok:
+            print("Autostart enabled.")
+            if p.is_windows:
+                print("Mangopret will start on login with UAC prompt.")
+            else:
+                print("XDG autostart entry created in ~/.config/autostart/")
+        else:
+            print(f"Failed to enable autostart: {err}")
+            sys.exit(1)
+    elif action == "disable":
+        ok, err = p.disable_startup()
+        if ok:
+            print("Autostart disabled.")
+        else:
+            print(f"Failed to disable autostart: {err}")
+            sys.exit(1)
+    elif action == "status":
+        enabled = p.is_startup_enabled()
+        print(f"Autostart: {'enabled' if enabled else 'disabled'}")
+
+
 def _load_strategies(p):
     strategies = {}
     if p.strategies_dir.exists():
@@ -282,7 +385,6 @@ def _stop_running(p):
     if p.is_process_running():
         print("Stopping current process ...")
         p.kill_all()
-        p.remove_iptables_rules()
 
 
 def main():
@@ -298,7 +400,13 @@ def main():
     sub.add_parser("strategies", help="List available strategies")
     sub.add_parser("update", help="Update zapret to latest version")
     sub.add_parser("stop", help="Stop running bypass")
+    sub.add_parser("fix", help="Emergency: kill all nfqws and clean iptables")
     sub.add_parser("diagnostics", help="Run diagnostics")
+
+    p_convert = sub.add_parser("convert", help="Convert .bat or zapret config files to .strategy")
+    p_convert.add_argument("input", help="Input .bat file or directory containing .bat/.strategy files")
+    p_convert.add_argument("-o", "--output", default="gui/strategies",
+                           help="Output directory for .strategy files (default: gui/strategies)")
 
     p_start = sub.add_parser("start", help="Start a strategy")
     p_start.add_argument("strategy", nargs="?", default="", help="Strategy name")
@@ -313,6 +421,9 @@ def main():
                          choices=["list", "update-ipset", "update-hosts", "edit"])
     p_lists.add_argument("file", nargs="?", default=None)
 
+    p_autostart = sub.add_parser("autostart", help="Manage login autostart")
+    p_autostart.add_argument("action", choices=["enable", "disable", "status"])
+
     args = parser.parse_args()
 
     if not args.command:
@@ -325,12 +436,15 @@ def main():
         "uninstall": cmd_uninstall,
         "start": cmd_start,
         "stop": cmd_stop,
+        "fix": cmd_fix,
         "status": cmd_status,
         "strategies": cmd_strategies,
         "update": cmd_update,
         "service": cmd_service,
         "lists": cmd_lists,
         "diagnostics": cmd_diagnostics,
+        "convert": cmd_convert,
+        "autostart": cmd_autostart,
     }
 
     func = commands.get(args.command)

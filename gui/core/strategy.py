@@ -86,8 +86,6 @@ class Strategy:
         binary_path: str,
         bin_dir: str,
         lists_dir: str,
-        game_filter_tcp: str = "",
-        game_filter_udp: str = "",
         is_windows: bool = True,
     ) -> list:
         cmd = [str(binary_path)]
@@ -97,16 +95,10 @@ class Strategy:
             raw_udp = self.wf_udp.replace("%GameFilterUDP%", "").replace("{game_filter_udp}", "")
             tcp_parts = [p.strip() for p in raw_tcp.split(",") if p.strip()]
             udp_parts = [p.strip() for p in raw_udp.split(",") if p.strip()]
-            if game_filter_tcp and game_filter_tcp != "12":
-                tcp_parts.append(game_filter_tcp)
-            if game_filter_udp and game_filter_udp != "12":
-                udp_parts.append(game_filter_udp)
             if tcp_parts:
                 cmd.append(f"--wf-tcp={','.join(tcp_parts)}")
             if udp_parts:
                 cmd.append(f"--wf-udp={','.join(udp_parts)}")
-
-        has_game_filter = bool(game_filter_tcp or game_filter_udp)
 
         for i, rule in enumerate(self.rules):
             rule_args = rule.to_args()

@@ -46,18 +46,6 @@
       "dpi-desync": "syndata,multidisorder"
     },
     {
-      "name": "IPSet TCP {game_filter_tcp}",
-      "filter-tcp": "{game_filter_tcp}",
-      "ipset": "{lists}/ipset-all.txt",
-      "ipset-exclude": [
-        "{lists}/ipset-exclude.txt",
-        "{lists}/ipset-exclude-user.txt"
-      ],
-      "dpi-desync": "syndata,multidisorder",
-      "dpi-desync-any-protocol": "1",
-      "dpi-desync-cutoff": "n4"
-    },
-    {
       "name": "IPSet UDP 443",
       "filter-udp": "443",
       "ipset": "{lists}/ipset-all.txt",
@@ -72,20 +60,6 @@
       "dpi-desync": "fake",
       "dpi-desync-repeats": "6",
       "dpi-desync-fake-quic": "{bin}/quic_initial_www_google_com.bin"
-    },
-    {
-      "name": "IPSet UDP {game_filter_udp}",
-      "filter-udp": "{game_filter_udp}",
-      "ipset": "{lists}/ipset-all.txt",
-      "ipset-exclude": [
-        "{lists}/ipset-exclude.txt",
-        "{lists}/ipset-exclude-user.txt"
-      ],
-      "dpi-desync": "fake",
-      "dpi-desync-repeats": "14",
-      "dpi-desync-any-protocol": "1",
-      "dpi-desync-fake-unknown-udp": "{bin}/ACTIVE_GAME_UDP.bin",
-      "dpi-desync-cutoff": "n3"
     }
   ]
 }
