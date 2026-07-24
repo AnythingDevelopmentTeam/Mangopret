@@ -56,27 +56,56 @@ install_pyqt6() {
 }
 
 install_terminal() {
-    if command -v x-terminal-emulator &>/dev/null || command -v xdg-terminal-exec &>/dev/null; then
-        return 0
-    fi
-    echo "No terminal emulator found. Installing..."
+    # detect terminal from environment or parent process tree
+    for var in TERMINAL_EMULATOR TERM_PROGRAM COLORTERM; do
+        val="${!var}"
+        if [ -n "$val" ] && command -v "$val" &>/dev/null; then
+            return 0
+        fi
+    done
 
-    if command -v apt &>/dev/null; then
-        sudo apt install -y xdg-utils xterm 2>/dev/null && return 0
-    fi
-    if command -v pacman &>/dev/null; then
-        sudo pacman -S --noconfirm xdg-utils xterm 2>/dev/null && return 0
-    fi
-    if command -v dnf &>/dev/null; then
-        sudo dnf install -y xdg-utils xterm 2>/dev/null && return 0
-    fi
-    if command -v zypper &>/dev/null; then
-        sudo zypper install -y xdg-utils xterm 2>/dev/null && return 0
-    fi
-    if command -v apk &>/dev/null; then
-        sudo apk add xdg-utils xterm 2>/dev/null && return 0
-    fi
+    pid=$$
+    for _ in 1 2 3 4 5 6; do
+        pid=$(awk '/^PPid:/ {print $2}' "/proc/$pid/status" 2>/dev/null) || break
+        [ "$pid" -le 1 ] 2>/dev/null && break
+        comm=$(cat "/proc/$pid/comm" 2>/dev/null) || continue
+        if command -v "$comm" &>/dev/null; then
+            return 0
+        fi
+    done
 
+    # fallback
+    for cmd in x-terminal-emulator xdg-terminal-exec gnome-terminal konsole xfce4-terminal lxterminal xterm; do
+        if command -v "$cmd" &>/dev/null; then
+            return 0
+        fi
+    done
+
+    read -rp "No terminal emulator found. Install xterm? [y/N] " answer
+    case "$answer" in
+        [yY]|[yY][eE][sS])
+            echo "Installing xterm..."
+            if command -v apt &>/dev/null; then
+                sudo apt install -y xterm 2>/dev/null && return 0
+            fi
+            if command -v pacman &>/dev/null; then
+                sudo pacman -S --noconfirm xterm 2>/dev/null && return 0
+            fi
+            if command -v dnf &>/dev/null; then
+                sudo dnf install -y xterm 2>/dev/null && return 0
+            fi
+            if command -v zypper &>/dev/null; then
+                sudo zypper install -y xterm 2>/dev/null && return 0
+            fi
+            if command -v apk &>/dev/null; then
+                sudo apk add xterm 2>/dev/null && return 0
+            fi
+            echo "Failed to install xterm."
+            ;;
+        *)
+            echo "Install a terminal emulator manually (gnome-terminal, konsole, xterm, etc.)"
+            ;;
+    esac
     return 1
 }
 

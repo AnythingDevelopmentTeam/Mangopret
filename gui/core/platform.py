@@ -113,7 +113,7 @@ class PlatformInfo:
             term = self._find_terminal()
             if not term:
                 if callback:
-                    callback("No terminal emulator found. Install x-terminal-emulator.")
+                    callback("No terminal emulator found. Install gnome-terminal, xterm, or another terminal.")
                 return False
 
             script = f"""#!/bin/bash
@@ -138,7 +138,7 @@ read
             script_path.write_text(script)
             script_path.chmod(0o755)
 
-            subprocess.Popen([term, "-e", f"bash {script_path}"])
+            subprocess.Popen(self._terminal_command(term, str(script_path)))
 
             if callback:
                 callback("Opened installer in terminal. Follow the prompts there.")
@@ -202,11 +202,67 @@ read
 
     @staticmethod
     def _find_terminal() -> str:
-        for name in ["x-terminal-emulator", "xdg-terminal-exec"]:
+        import re
+
+        # 1) environment hints (JetBrains, iTerm2, etc.)
+        for var in ("TERMINAL_EMULATOR", "TERM_PROGRAM", "COLORTERM"):
+            val = os.environ.get(var, "")
+            if val:
+                path = shutil.which(val)
+                if path:
+                    return path
+
+        # 2) walk parent process tree via /proc
+        try:
+            ppid = os.getppid()
+            for _ in range(6):
+                if ppid <= 1:
+                    break
+                comm_file = Path(f"/proc/{ppid}/comm")
+                if comm_file.exists():
+                    comm = comm_file.read_text().strip()
+                    path = shutil.which(comm)
+                    if path:
+                        return path
+                status_file = Path(f"/proc/{ppid}/status")
+                if status_file.exists():
+                    m = re.search(r"^PPid:\s+(\d+)", status_file.read_text(), re.M)
+                    if m:
+                        ppid = int(m.group(1))
+                    else:
+                        break
+                else:
+                    break
+        except Exception:
+            pass
+
+        # 3) fallback: common terminals
+        for name in [
+            "x-terminal-emulator",
+            "xdg-terminal-exec",
+            "gnome-terminal",
+            "konsole",
+            "xfce4-terminal",
+            "lxterminal",
+            "xterm",
+        ]:
             path = shutil.which(name)
             if path:
                 return path
         return ""
+
+    @staticmethod
+    def _terminal_command(term: str, script_path: str) -> list:
+        name = Path(term).name
+        if name == "gnome-terminal":
+            return [term, "--", "bash", script_path]
+        if name == "konsole":
+            return [term, "-e", "bash", script_path]
+        if name == "xfce4-terminal":
+            return [term, "-e", "bash", script_path]
+        if name == "xdg-terminal-exec":
+            return [term, "--", "bash", script_path]
+        return [term, "-e", f"bash {script_path}"]
 
     # ------------------------------------------------------------------ process
     def start_process(self, args: list) -> Optional[subprocess.Popen]:
