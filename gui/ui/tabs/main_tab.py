@@ -296,10 +296,9 @@ class MainTab(QWidget):
 
     def set_active(self, active: bool, strategy_name: str = ""):
         self._active_strategy = strategy_name if active else ""
-        self.btn_start.setEnabled(not active)
-        self.btn_stop.setEnabled(active)
         self.btn_start.setText("Start" if not active else "Switch")
         self.btn_start.setEnabled(True)
+        self.btn_stop.setEnabled(active)
 
     def set_status(self, key: str, text: str, status: str = "ok"):
         if key in self.status_labels:

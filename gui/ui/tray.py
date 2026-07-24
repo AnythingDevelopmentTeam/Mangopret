@@ -90,8 +90,7 @@ class SystemTray(QObject):
         self.start_requested.emit(strategy_id)
 
     def _on_start(self):
-        if self._current_strategy:
-            self.start_requested.emit(self._current_strategy)
+        self.start_requested.emit(self._current_strategy)
 
     def _on_activated(self, reason):
         if reason == QSystemTrayIcon.ActivationReason.DoubleClick:

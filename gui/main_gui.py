@@ -11,12 +11,49 @@ sys.path.insert(0, SCRIPT_DIR)
 
 from PyQt6.QtWidgets import QApplication, QStyleFactory
 from PyQt6.QtGui import QFont
+from PyQt6.QtNetwork import QLocalServer, QLocalSocket
 
 from core.platform import PlatformInfo
 from core.config import Config
 from core.lists import ListManager
 from ui.main_window import MainWindow
 from ui.theme import DARK_THEME
+
+_SOCKET_NAME = "mangopret-gui"
+
+
+def _try_activate_existing():
+    """Try to connect to an already-running instance. Returns True if one exists."""
+    socket = QLocalSocket()
+    socket.connectToServer(_SOCKET_NAME)
+    if socket.waitForConnected(500):
+        socket.write(b"activate")
+        socket.waitForBytesWritten(1000)
+        socket.disconnectFromServer()
+        return True
+    return False
+
+
+def _start_server(parent_window):
+    """Start a local server so future instances can notify us.
+    Removes stale socket files if the previous instance crashed."""
+    server = QLocalServer()
+    # Remove any stale socket from a crashed instance
+    QLocalServer.removeServer(_SOCKET_NAME)
+    if not server.listen(_SOCKET_NAME):
+        return None
+
+    def on_new_connection():
+        sock = server.nextPendingConnection()
+        if sock:
+            sock.waitForReadyRead(1000)
+            data = sock.readAll().data()
+            if data == b"activate" and parent_window is not None:
+                parent_window._show_window()
+            sock.disconnectFromServer()
+
+    server.newConnection.connect(on_new_connection)
+    return server
 
 
 # Actions that need root; surfaced as a set for quick lookup
@@ -115,17 +152,25 @@ def main():
     args = sys.argv[1:]
     start_minimized = "--minimized" in args or config.get("start_minimized", False)
 
-    window = MainWindow(platform, config, list_manager, start_minimized=start_minimized)
-    if start_minimized:
-        window.hide()
+    # Single-instance guard: if another instance is already running, tell it
+    # to show itself and exit this process.
+    if not _try_activate_existing():
+        window = MainWindow(platform, config, list_manager, start_minimized=start_minimized)
+        _server = _start_server(window)
+        if start_minimized:
+            window.hide()
+        else:
+            window.show()
+
+        # If elevated by pkexec, run any queued action then normal GUI loop
+        if platform.IS_ROOT:
+            _run_pending(window)
+
+        sys.exit(app.exec())
     else:
-        window.show()
-
-    # If elevated by pkexec, run any queued action then normal GUI loop
-    if platform.IS_ROOT:
-        _run_pending(window)
-
-    sys.exit(app.exec())
+        # Another instance was already running and was told to activate.
+        # Nothing more to do — this process exits naturally.
+        pass
 
 
 if __name__ == "__main__":

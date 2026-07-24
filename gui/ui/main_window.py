@@ -47,8 +47,6 @@ class MainWindow(QMainWindow):
                 self._on_strategy_changed(idx)
 
     def _require_root(self, action, payload=None):
-        if self._start_minimized:
-            return True
         if self.platform.IS_ROOT:
             return True
 
@@ -60,7 +58,9 @@ class MainWindow(QMainWindow):
     def _elevate_linux(self, action, payload=None):
         self.config.set("_pending_root_action", {"action": action, "payload": payload or {}})
         script = sys.argv[0]
-        args = sys.argv[1:]
+        args = list(sys.argv[1:])
+        if self._start_minimized and "--minimized" not in args:
+            args.append("--minimized")
         try:
             subprocess.Popen(
                 ["pkexec", "--disable-internal-agent", script] + args,
@@ -81,10 +81,13 @@ class MainWindow(QMainWindow):
             import ctypes
             script = os.path.abspath(sys.argv[0])
             gui_dir = os.path.dirname(script)
-            args = " ".join(f'"{a}"' for a in sys.argv[1:])
+            args = list(sys.argv[1:])
+            if self._start_minimized and "--minimized" not in args:
+                args.append("--minimized")
+            args_str = " ".join(f'"{a}"' for a in args)
 
             ret = ctypes.windll.shell32.ShellExecuteW(
-                None, "runas", sys.executable, f'"{script}" {args}',
+                None, "runas", sys.executable, f'"{script}" {args_str}',
                 gui_dir, 1,
             )
             if ret <= 32:
@@ -216,10 +219,24 @@ class MainWindow(QMainWindow):
                     self.status_bar.showMessage(f"Already active: {name}")
                     return
                 self._log(f"Switching from {self.active_strategy_name} to {name}...")
-                self.platform.service_stop()
-                import time
-                time.sleep(1)
+                ok, err = self.platform.service_stop()
+                if not ok:
+                    self._log(f"FAILED to stop old service: {err}")
+                    self.status_bar.showMessage("Failed to stop old service")
+                    return
+                self._pending_start_name = name
+                QTimer.singleShot(1500, self._do_deferred_start)
+                return
 
+        self._do_start(name)
+
+    def _do_deferred_start(self):
+        name = getattr(self, "_pending_start_name", "")
+        self._pending_start_name = ""
+        if name:
+            self._do_start(name)
+
+    def _do_start(self, name: str):
         strategy = self.strategies[name]
 
         self._log(f"Creating service: {name}")
@@ -266,7 +283,12 @@ class MainWindow(QMainWindow):
         if not self._require_root("stop"):
             return
         self._log("Stopping service...")
-        self.platform.service_stop()
+        ok, err = self.platform.service_stop()
+        if not ok:
+            self._log(f"FAILED to stop service: {err}")
+            self.status_bar.showMessage("Stop failed")
+            QTimer.singleShot(1000, self._refresh_status)
+            return
         self.active_strategy_name = ""
         self.main_tab.set_active(False)
         self.tray.set_active(False)
@@ -324,8 +346,12 @@ class MainWindow(QMainWindow):
 
         if service_status == "running" and self.active_strategy_name:
             pass
+        elif service_status == "running" and not self.active_strategy_name:
+            self.main_tab.set_active(True)
+            self.tray.set_active(True)
         elif service_status != "running" and self.active_strategy_name:
             self.active_strategy_name = ""
+            self._pending_start_name = ""
             self.main_tab.set_active(False)
             self.tray.set_active(False)
             self.status_bar.showMessage("Service stopped")
