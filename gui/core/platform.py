@@ -85,7 +85,10 @@ class PlatformInfo:
 
     def _install_zapret_linux(self, callback=None) -> bool:
         try:
-            tmpdir = Path(tempfile.mkdtemp(prefix="mangopret_"))
+            base = Path.home() / ".local" / "tmp"
+            base.mkdir(parents=True, exist_ok=True)
+            tmpdir = Path(tempfile.mkdtemp(dir=str(base), prefix="mangopret_"))
+            os.chmod(str(tmpdir), 0o755)
 
             if callback:
                 callback(f"Downloading zapret v{ZAPRET_VERSION} ...")
@@ -105,6 +108,7 @@ class PlatformInfo:
                     src = d
                     break
             src = src or tmpdir
+            os.chmod(str(src), 0o755)
 
             if callback:
                 callback(f"Installing to {self.zapret_dir} ...")
@@ -262,7 +266,7 @@ read
             return [term, "-e", "bash", script_path]
         if name == "xdg-terminal-exec":
             return [term, "--", "bash", script_path]
-        return [term, "-e", f"bash {script_path}"]
+        return [term, "-e", "bash", script_path]
 
     # ------------------------------------------------------------------ process
     def start_process(self, args: list) -> Optional[subprocess.Popen]:

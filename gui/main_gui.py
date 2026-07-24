@@ -2,6 +2,7 @@
 """Mangopret GUI entry point. Requires PyQt6."""
 import sys
 import os
+import signal
 import subprocess
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -116,6 +117,11 @@ def _dispatch(window, action, payload):
         window._update_hosts_root()
 
 
+def _handle_sigint(sig, frame):
+    from PyQt6.QtCore import QTimer
+    QTimer.singleShot(0, QApplication.quit)
+
+
 def _apply_theme(app, platform):
     if platform.is_windows:
         available = QStyleFactory.keys()
@@ -130,7 +136,9 @@ def _apply_theme(app, platform):
 
 
 def main():
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
     app = QApplication(sys.argv)
+    signal.signal(signal.SIGINT, _handle_sigint)
     app.setApplicationName("Mangopret")
     app.setOrganizationName("Mangopret")
 
