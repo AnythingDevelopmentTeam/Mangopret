@@ -84,11 +84,11 @@ class PlatformInfo:
         return self._install_zapret_linux(callback)
 
     def _install_zapret_linux(self, callback=None) -> bool:
+        tmpdir = None
         try:
             base = Path.home() / ".local" / "tmp"
             base.mkdir(parents=True, exist_ok=True)
             tmpdir = Path(tempfile.mkdtemp(dir=str(base), prefix="mangopret_"))
-            os.chmod(str(tmpdir), 0o755)
 
             if callback:
                 callback(f"Downloading zapret v{ZAPRET_VERSION} ...")
@@ -108,46 +108,39 @@ class PlatformInfo:
                     src = d
                     break
             src = src or tmpdir
-            os.chmod(str(src), 0o755)
 
             if callback:
                 callback(f"Installing to {self.zapret_dir} ...")
 
             installer = Path(__file__).parent.parent.parent / "silent_install.sh"
-            term = self._find_terminal()
-            if not term:
+            if not installer.exists():
                 if callback:
-                    callback("No terminal emulator found. Install gnome-terminal, xterm, or another terminal.")
+                    callback(f"Error: installer not found at {installer}")
                 return False
 
-            script = f"""#!/bin/bash
-cd "{src}"
-echo "=== Mangopret installer ==="
-echo "This will install zapret v{ZAPRET_VERSION} to {self.zapret_dir}"
-echo ""
-
-if [ "$(id -u)" -ne 0 ]; then
-    echo "Requesting root access..."
-    sudo bash "{installer}" "{src}" "{self.zapret_dir}"
-else
-    bash "{installer}" "{src}" "{self.zapret_dir}"
-fi
-
-echo ""
-echo "=== Installation finished ==="
-echo "Press Enter to close..."
-read
-"""
-            script_path = tmpdir / "install_mangopret.sh"
-            script_path.write_text(script)
-            script_path.chmod(0o755)
-
-            subprocess.Popen(self._terminal_command(term, str(script_path)))
+            proc = subprocess.run(
+                ["bash", str(installer), str(src), str(self.zapret_dir)],
+                capture_output=True, text=True, timeout=600,
+            )
+            for line in proc.stdout.splitlines():
+                if callback:
+                    callback(line)
+            if proc.returncode != 0:
+                if callback:
+                    callback(f"Installer failed (exit code {proc.returncode})")
+                    if proc.stderr:
+                        for line in proc.stderr.splitlines()[-5:]:
+                            callback(line)
+                return False
 
             if callback:
-                callback("Opened installer in terminal. Follow the prompts there.")
+                callback("Installation complete!")
             return True
 
+        except subprocess.TimeoutExpired:
+            if callback:
+                callback("Error: installation timed out after 10 minutes")
+            return False
         except Exception as e:
             if callback:
                 callback(f"Error: {e}")
@@ -203,70 +196,6 @@ read
             return False
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
-
-    @staticmethod
-    def _find_terminal() -> str:
-        import re
-
-        # 1) environment hints (JetBrains, iTerm2, etc.)
-        for var in ("TERMINAL_EMULATOR", "TERM_PROGRAM", "COLORTERM"):
-            val = os.environ.get(var, "")
-            if val:
-                path = shutil.which(val)
-                if path:
-                    return path
-
-        # 2) walk parent process tree via /proc
-        try:
-            ppid = os.getppid()
-            for _ in range(6):
-                if ppid <= 1:
-                    break
-                comm_file = Path(f"/proc/{ppid}/comm")
-                if comm_file.exists():
-                    comm = comm_file.read_text().strip()
-                    path = shutil.which(comm)
-                    if path:
-                        return path
-                status_file = Path(f"/proc/{ppid}/status")
-                if status_file.exists():
-                    m = re.search(r"^PPid:\s+(\d+)", status_file.read_text(), re.M)
-                    if m:
-                        ppid = int(m.group(1))
-                    else:
-                        break
-                else:
-                    break
-        except Exception:
-            pass
-
-        # 3) fallback: common terminals
-        for name in [
-            "x-terminal-emulator",
-            "xdg-terminal-exec",
-            "gnome-terminal",
-            "konsole",
-            "xfce4-terminal",
-            "lxterminal",
-            "xterm",
-        ]:
-            path = shutil.which(name)
-            if path:
-                return path
-        return ""
-
-    @staticmethod
-    def _terminal_command(term: str, script_path: str) -> list:
-        name = Path(term).name
-        if name == "gnome-terminal":
-            return [term, "--", "bash", script_path]
-        if name == "konsole":
-            return [term, "-e", "bash", script_path]
-        if name == "xfce4-terminal":
-            return [term, "-e", "bash", script_path]
-        if name == "xdg-terminal-exec":
-            return [term, "--", "bash", script_path]
-        return [term, "-e", "bash", script_path]
 
     # ------------------------------------------------------------------ process
     def start_process(self, args: list) -> Optional[subprocess.Popen]:
