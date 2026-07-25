@@ -1,10 +1,14 @@
 import os
 import json
 from pathlib import Path
-from typing import Optional
+from typing import Any
+from core.log import get_logger
+
+logger = get_logger(__name__)
+
 
 class Config:
-    _defaults = {
+    _defaults: dict[str, Any] = {
         "ipset_mode": "loaded",
         "check_updates": True,
         "last_strategy": "",
@@ -16,37 +20,37 @@ class Config:
         "linux_zapret_path": "",
     }
 
-    def __init__(self, config_dir: str):
+    def __init__(self, config_dir: str) -> None:
         self.config_dir = Path(config_dir)
         self.config_file = self.config_dir / "config.json"
         self._data = dict(self._defaults)
         self.load()
 
-    def load(self):
+    def load(self) -> None:
         if self.config_file.exists():
             try:
                 with open(self.config_file, "r", encoding="utf-8") as f:
                     saved = json.load(f)
                 self._data.update(saved)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to load config from %s: %s", self.config_file, exc)
 
-    def save(self):
+    def save(self) -> None:
         self.config_dir.mkdir(parents=True, exist_ok=True)
         with open(self.config_file, "w", encoding="utf-8") as f:
             json.dump(self._data, f, indent=2, ensure_ascii=False)
 
-    def get(self, key: str, default=None):
+    def get(self, key: str, default: Any = None) -> Any:
         return self._data.get(key, default)
 
-    def set(self, key: str, value):
+    def set(self, key: str, value: Any) -> None:
         self._data[key] = value
         self.save()
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: str) -> Any:
         return self._data.get(key)
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: str, value: Any) -> None:
         self._data[key] = value
         self.save()
 
@@ -63,11 +67,12 @@ class Config:
                 if content == "":
                     return "any"
                 return "loaded"
-        except Exception:
+        except Exception as exc:
+            logger.warning("Failed to read ipset file %s: %s", ipset_file, exc)
             return "none"
         return "none"
 
-    def set_ipset_mode(self, mode: str, lists_dir: str):
+    def set_ipset_mode(self, mode: str, lists_dir: str) -> None:
         ipset_file = Path(lists_dir) / "ipset-all.txt"
         backup_file = Path(lists_dir) / "ipset-all.txt.backup"
 

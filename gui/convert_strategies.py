@@ -1,15 +1,4 @@
 #!/usr/bin/env python3
-"""
-Mangopret Strategy Converter
-Converts zapret-discord-youtube .bat strategy files to universal .strategy JSON format.
-
-Usage:
-    python convert_strategies.py                          # auto-detect bat dir, output to gui/strategies/
-    python convert_strategies.py --bat-dir /path/to/bats  # specify bat directory
-    python convert_strategies.py --output /path/to/out    # specify output directory
-    python convert_strategies.py --verify                 # verify existing .strategy files
-    python convert_strategies.py --single file.bat        # convert a single .bat file
-"""
 import sys
 import os
 import json
@@ -22,9 +11,12 @@ BASE_DIR = SCRIPT_DIR.parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from core.strategy import StrategyParser, Strategy
+from core.log import get_logger
+
+logger = get_logger(__name__)
 
 
-def print_banner():
+def print_banner() -> None:
     print("=" * 60)
     print("  Mangopret Strategy Converter")
     print("  Converts .bat -> .strategy (universal JSON format)")
@@ -32,7 +24,7 @@ def print_banner():
     print()
 
 
-def convert_all(bat_dir: Path, output_dir: Path):
+def convert_all(bat_dir: Path, output_dir: Path) -> list[Strategy]:
     print(f"  Source:  {bat_dir}")
     print(f"  Output:  {output_dir}")
     print()
@@ -45,7 +37,7 @@ def convert_all(bat_dir: Path, output_dir: Path):
     print()
 
     for s in converted:
-        rules_summary = []
+        rules_summary: list[str] = []
         for r in s.rules:
             desync = r.params.get("dpi-desync", "?")
             if isinstance(desync, list):
@@ -62,7 +54,7 @@ def convert_all(bat_dir: Path, output_dir: Path):
     return converted
 
 
-def convert_single(bat_path: Path, output_dir: Path):
+def convert_single(bat_path: Path, output_dir: Path) -> Strategy | None:
     print(f"  Converting: {bat_path.name}")
     strategy = StrategyParser._from_bat(bat_path)
     if not strategy or not strategy.rules:
@@ -83,7 +75,7 @@ def convert_single(bat_path: Path, output_dir: Path):
     return strategy
 
 
-def verify_strategies(strategies_dir: Path):
+def verify_strategies(strategies_dir: Path) -> bool:
     print(f"  Verifying strategies in: {strategies_dir}")
     print()
 
@@ -116,11 +108,11 @@ def verify_strategies(strategies_dir: Path):
             print(f"  [OK]   {f.name}: {data.get('name', '?')} ({len(rules)} rules)")
             ok += 1
 
-        except json.JSONDecodeError as e:
-            print(f"  [ERR]  {f.name}: invalid JSON: {e}")
+        except json.JSONDecodeError as exc:
+            print(f"  [ERR]  {f.name}: invalid JSON: {exc}")
             errors += 1
-        except Exception as e:
-            print(f"  [ERR]  {f.name}: {e}")
+        except Exception as exc:
+            print(f"  [ERR]  {f.name}: {exc}")
             errors += 1
 
     print()
@@ -128,7 +120,7 @@ def verify_strategies(strategies_dir: Path):
     return errors == 0
 
 
-def diff_with_bats(bat_dir: Path, strategy_dir: Path):
+def diff_with_bats(bat_dir: Path, strategy_dir: Path) -> bool:
     print(f"  Comparing .bat files with .strategy files")
     print(f"  BAT dir:     {bat_dir}")
     print(f"  Strategy dir: {strategy_dir}")
@@ -160,7 +152,7 @@ def diff_with_bats(bat_dir: Path, strategy_dir: Path):
     return len(only_bat) == 0
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(
         description="Mangopret Strategy Converter: .bat -> .strategy",
         formatter_class=argparse.RawDescriptionHelpFormatter,

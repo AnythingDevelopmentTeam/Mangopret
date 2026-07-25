@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Mangopret - CLI manager for zapret DPI bypass."""
 import sys
 import os
 import argparse
@@ -13,31 +12,33 @@ sys.path.insert(0, SCRIPT_DIR)
 from core.platform import PlatformInfo
 from core.config import Config
 from core.strategy import StrategyParser
+from core.log import get_logger
 
+logger = get_logger(__name__)
 
 BANNER = r"""
-  __  __                         _____          _   
- |  \/  |                       |  __ \        | |  
- | \  / | __ _ _ __   __ _  ___ | |__) | __ ___| |_ 
+  __  __                         _____          _
+ |  \/  |                       |  __ \        | |
+ | \  / | __ _ _ __   __ _  ___ | |__) | __ ___| |_
  | |\/| |/ _` | '_ \ / _` |/ _ \|  ___/ '__/ _ \ __|
- | |  | | (_| | | | | (_| | (_) | |   | | |  __/ |_ 
+ | |  | | (_| | | | | (_| | (_) | |   | | |  __/ |_
  |_|  |_|\__,_|_| |_|\__, |\___/|_|   |_|  \___|\__|
-                      __/ |                         
+                      __/ |
                      |___/                           v%s
 
 """ % "2.0"
 
 
-def get_platform():
+def get_platform() -> PlatformInfo:
     return PlatformInfo(BASE_DIR)
 
 
-def get_config():
+def get_config() -> Config:
     p = get_platform()
     return Config(str(p.config_dir))
 
 
-def cmd_install(args):
+def cmd_install(args: argparse.Namespace) -> None:
     p = get_platform()
     if p.is_windows:
         print("Zapret is already bundled with Mangopret on Windows.")
@@ -55,7 +56,7 @@ def cmd_install(args):
     print("  ./run.sh strategies         - list strategies")
 
 
-def cmd_uninstall(args):
+def cmd_uninstall(args: argparse.Namespace) -> None:
     p = get_platform()
     print("Stopping zapret ...")
     p.kill_all()
@@ -76,7 +77,7 @@ def cmd_uninstall(args):
         print(f"{zapret_dir} not found, nothing to remove")
 
 
-def cmd_start(args):
+def cmd_start(args: argparse.Namespace) -> None:
     p = get_platform()
     config = get_config()
 
@@ -136,7 +137,7 @@ def cmd_start(args):
             sys.exit(1)
 
 
-def cmd_stop(args):
+def cmd_stop(args: argparse.Namespace) -> None:
     p = get_platform()
     print("Stopping ...")
     if p.is_linux:
@@ -147,7 +148,7 @@ def cmd_stop(args):
         print("Stopped.")
 
 
-def cmd_fix(args):
+def cmd_fix(args: argparse.Namespace) -> None:
     p = get_platform()
     print("Emergency: fixing network...")
     p.kill_all()
@@ -163,7 +164,7 @@ def cmd_fix(args):
     print("All nfqws killed, network cleaned.")
 
 
-def cmd_status(args):
+def cmd_status(args: argparse.Namespace) -> None:
     p = get_platform()
     config = get_config()
 
@@ -182,7 +183,7 @@ def cmd_status(args):
     print(f"IPSet: {ipset}")
 
 
-def cmd_strategies(args):
+def cmd_strategies(args: argparse.Namespace) -> None:
     p = get_platform()
     strategies = _load_strategies(p)
     if not strategies:
@@ -195,7 +196,7 @@ def cmd_strategies(args):
         print(f"    {s.description}")
 
 
-def cmd_update(args):
+def cmd_update(args: argparse.Namespace) -> None:
     p = get_platform()
     if p.is_windows:
         print("Zapret is already bundled with Mangopret on Windows.")
@@ -214,7 +215,7 @@ def cmd_update(args):
         sys.exit(1)
 
 
-def cmd_service(args):
+def cmd_service(args: argparse.Namespace) -> None:
     p = get_platform()
     config = get_config()
     action = args.action
@@ -260,9 +261,8 @@ def cmd_service(args):
         print(f"Unknown action: {action}")
 
 
-def cmd_lists(args):
+def cmd_lists(args: argparse.Namespace) -> None:
     p = get_platform()
-    config = get_config()
     from core.lists import ListManager
     lm = ListManager(str(p.lists_dir), str(p.utils_dir))
 
@@ -292,7 +292,7 @@ def cmd_lists(args):
             print(f"  {f}")
 
 
-def cmd_diagnostics(args):
+def cmd_diagnostics(args: argparse.Namespace) -> None:
     p = get_platform()
     from core.lists import ListManager
     lm = ListManager(str(p.lists_dir), str(p.utils_dir))
@@ -300,15 +300,15 @@ def cmd_diagnostics(args):
     print(result)
 
 
-def cmd_convert(args):
-    from core.strategy import StrategyParser, Strategy
+def cmd_convert(args: argparse.Namespace) -> None:
+    from core.strategy import StrategyParser
     from pathlib import Path
 
     input_path = Path(args.input)
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    files_to_convert = []
+    files_to_convert: list[Path] = []
 
     if input_path.is_file():
         files_to_convert.append(input_path)
@@ -350,7 +350,7 @@ def cmd_convert(args):
     print(f"Output: {output_dir}")
 
 
-def cmd_autostart(args):
+def cmd_autostart(args: argparse.Namespace) -> None:
     p = get_platform()
     action = args.action
 
@@ -377,8 +377,8 @@ def cmd_autostart(args):
         print(f"Autostart: {'enabled' if enabled else 'disabled'}")
 
 
-def _load_strategies(p):
-    strategies = {}
+def _load_strategies(p: PlatformInfo) -> dict:
+    strategies: dict = {}
     if p.strategies_dir.exists():
         for f in sorted(p.strategies_dir.glob("*.strategy")):
             s = StrategyParser.from_file(str(f))
@@ -387,13 +387,13 @@ def _load_strategies(p):
     return strategies
 
 
-def _stop_running(p):
+def _stop_running(p: PlatformInfo) -> None:
     if p.is_process_running():
         print("Stopping current process ...")
         p.kill_all()
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         prog="run.sh",
         description="Mangopret - zapret DPI bypass manager",

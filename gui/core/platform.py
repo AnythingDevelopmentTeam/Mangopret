@@ -1,12 +1,17 @@
+import json
 import os
-import sys
-import subprocess
+import re
 import shutil
+import subprocess
+import sys
 import tarfile
-import urllib.request
 import tempfile
+import urllib.request
 from pathlib import Path
-from typing import Optional, Tuple, List
+from typing import Any, Callable, Optional, Tuple, List
+from core.log import get_logger
+
+logger = get_logger(__name__)
 
 ZAPRET_VERSION = "72.13"
 ZAPRET_URL = (
@@ -24,7 +29,8 @@ class PlatformInfo:
     is_linux: bool = sys.platform == "linux"
 
     IS_ROOT: bool = sys.platform != "win32" and os.geteuid() == 0
-    def __init__(self, base_dir: str):
+
+    def __init__(self, base_dir: str) -> None:
         self.base_dir = Path(base_dir)
         self.bin_dir = self.base_dir / "bin"
         self.lists_dir = self.base_dir / "lists"
@@ -38,7 +44,7 @@ class PlatformInfo:
         else:
             self._resolve_binary()
 
-    def _resolve_binary(self):
+    def _resolve_binary(self) -> None:
         candidates = [
             self.zapret_dir / "nfq" / "nfqws",
             self.zapret_dir / "bin" / "nfqws",
@@ -58,7 +64,7 @@ class PlatformInfo:
             base = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
         return Path(base) / "mangopret"
 
-    def ensure_dirs(self):
+    def ensure_dirs(self) -> None:
         for d in [self.config_dir, self.bin_dir, self.lists_dir, self.utils_dir]:
             d.mkdir(parents=True, exist_ok=True)
 
@@ -72,21 +78,22 @@ class PlatformInfo:
             self.zapret_dir / "config"
         ).exists()
 
-    def ensure_zapret(self, callback=None) -> bool:
+    def ensure_zapret(self, callback: Callable[[str], None] | None = None) -> bool:
         if self.is_zapret_installed():
             return True
         return self.install_zapret(callback=callback)
 
     # ------------------------------------------------------------------ install
-    def install_zapret(self, callback=None) -> bool:
+
+    def install_zapret(self, callback: Callable[[str], None] | None = None) -> bool:
         if self.is_windows:
             if callback:
                 callback("Zapret is already bundled — nothing to install.")
             return True
         return self._install_zapret_linux(callback)
 
-    def _install_zapret_linux(self, callback=None) -> bool:
-        tmpdir = None
+    def _install_zapret_linux(self, callback: Callable[[str], None] | None = None) -> bool:
+        tmpdir: Path | None = None
         try:
             base = Path.home() / ".local" / "tmp"
             base.mkdir(parents=True, exist_ok=True)
@@ -94,17 +101,15 @@ class PlatformInfo:
 
             if callback:
                 callback(f"Downloading zapret v{ZAPRET_VERSION} ...")
-
             archive = tmpdir / "zapret.tar.gz"
             urllib.request.urlretrieve(ZAPRET_URL, archive)
 
             if callback:
                 callback("Extracting ...")
-
             with tarfile.open(archive, "r:gz") as tf:
                 tf.extractall(tmpdir)
 
-            src = None
+            src: Path | None = None
             for d in tmpdir.iterdir():
                 if d.is_dir() and d.name.startswith("zapret"):
                     src = d
@@ -143,23 +148,31 @@ class PlatformInfo:
             if callback:
                 callback("Error: installation timed out after 10 minutes")
             return False
-        except Exception as e:
+        except Exception as exc:
             if callback:
-                callback(f"Error: {e}")
+                callback(f"Error: {exc}")
+            logger.error("Zapret Linux install failed: %s", exc)
             return False
+        finally:
+            if tmpdir:
+                shutil.rmtree(tmpdir, ignore_errors=True)
 
     # ------------------------------------------------------------------ process
+
     def start_process(self, args: list) -> Optional[subprocess.Popen]:
         cmd = [str(self.binary)] + args
-        kwargs = dict(cwd=str(self.bin_dir), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        kwargs: dict[str, Any] = dict(
+            cwd=str(self.bin_dir), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
         if self.is_windows:
             kwargs["creationflags"] = _WIN_CREATE_NO_WINDOW | _WIN_BELOW_NORMAL_PRIORITY
         try:
             return subprocess.Popen(cmd, **kwargs)
-        except Exception:
+        except Exception as exc:
+            logger.error("Failed to start process: %s", exc)
             return None
 
-    def stop_process(self, proc: Optional[subprocess.Popen]):
+    def stop_process(self, proc: Optional[subprocess.Popen]) -> None:
         if proc is None:
             return
         try:
@@ -167,10 +180,10 @@ class PlatformInfo:
             proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
             proc.kill()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("stop_process exception: %s", exc)
 
-    def is_process_running(self, name: str = None) -> bool:
+    def is_process_running(self, name: str | None = None) -> bool:
         if name is None:
             name = "winws.exe" if self.is_windows else "nfqws"
         try:
@@ -184,10 +197,11 @@ class PlatformInfo:
             else:
                 r = subprocess.run(["pgrep", "-f", name], capture_output=True, timeout=5)
                 return r.returncode == 0
-        except Exception:
+        except Exception as exc:
+            logger.warning("Failed to check running process: %s", exc)
             return False
 
-    def kill_all(self):
+    def kill_all(self) -> None:
         if self.is_windows:
             subprocess.run(
                 ["taskkill", "/IM", "winws.exe", "/F"],
@@ -198,6 +212,7 @@ class PlatformInfo:
             subprocess.run(["pkill", "-f", "nfqws"], capture_output=True)
 
     # ------------------------------------------------------------------ service
+
     def get_service_status(self) -> str:
         if self.is_windows:
             return self._get_windows_service_status()
@@ -214,8 +229,8 @@ class PlatformInfo:
                 return "running"
             elif "STOPPED" in r.stdout:
                 return "stopped"
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Windows service status check failed: %s", exc)
         return "not_installed"
 
     def _get_systemd_service_status(self) -> str:
@@ -236,8 +251,8 @@ class PlatformInfo:
                 return "failed"
             elif state == "inactive":
                 return "stopped"
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("systemd status check failed: %s", exc)
         return "not_installed"
 
     def is_service_enabled(self) -> bool:
@@ -249,7 +264,8 @@ class PlatformInfo:
                 capture_output=True, text=True, timeout=5,
             )
             return r.stdout.strip() == "enabled"
-        except Exception:
+        except Exception as exc:
+            logger.debug("systemd enabled check failed: %s", exc)
             return False
 
     def create_systemd_service(self, strategy, strategy_name: str = "") -> bool:
@@ -264,7 +280,7 @@ class PlatformInfo:
             config_path = self.zapret_dir / "config"
             existing = config_path.read_text(encoding="utf-8") if config_path.exists() else ""
 
-            def _replace_or_append(lines, key, value):
+            def _replace_or_append(lines: list[str], key: str, value: str) -> None:
                 found = False
                 for i, line in enumerate(lines):
                     stripped = line.strip()
@@ -300,7 +316,7 @@ class PlatformInfo:
             nfqws_opt_escaped = f'"\n{nfqws_opt}\n"'
             nfqws_opt_line = f"NFQWS_OPT={nfqws_opt_escaped}"
             in_nfqws_opt = False
-            new_lines = []
+            new_lines: list[str] = []
             for line in lines:
                 stripped = line.strip()
                 if stripped.startswith("NFQWS_OPT=") or stripped.startswith("NFQWS_OPT "):
@@ -308,7 +324,7 @@ class PlatformInfo:
                     new_lines.append(nfqws_opt_line + "\n")
                     continue
                 if in_nfqws_opt:
-                    if stripped.startswith('"') and not stripped.startswith('NFQWS'):
+                    if stripped.startswith('"') and not stripped.startswith("NFQWS"):
                         in_nfqws_opt = False
                         continue
                     if stripped.endswith('"'):
@@ -321,21 +337,20 @@ class PlatformInfo:
                 new_lines.append(nfqws_opt_line + "\n")
 
             config_path.write_text("".join(new_lines), encoding="utf-8")
-            print(f"[mangopret] Wrote config to {config_path}")
+            logger.info("Wrote config to %s", config_path)
 
             self._sync_ipset_files(strategy)
-
             self._install_zapret_service_unit(strategy_name)
             return True
-        except Exception as e:
-            print(f"[mangopret] Failed to create systemd service: {e}")
+        except Exception as exc:
+            logger.error("Failed to create systemd service: %s", exc)
             return False
 
     def _build_nfqws_opt(self, strategy) -> str:
-        parts = []
+        parts: list[str] = []
         for rule in strategy.rules:
             args = rule.to_args()
-            resolved = []
+            resolved: list[str] = []
             skip = False
             for arg in args:
                 if arg.startswith("--"):
@@ -362,13 +377,12 @@ class PlatformInfo:
         value = value.replace("{game_filter_udp}", "")
         return value
 
-    def _sync_ipset_files(self, strategy):
+    def _sync_ipset_files(self, strategy) -> None:
         zapret_ipset = self.zapret_dir / "ipset"
         zapret_ipset.mkdir(parents=True, exist_ok=True)
 
-        # Collect ipset/hostlist paths and .bin template paths from all rules
-        copied_ipset = set()
-        copied_bin = set()
+        copied_ipset: set[str] = set()
+        copied_bin: set[str] = set()
 
         for rule in strategy.rules:
             for key, vals in rule.params.items():
@@ -384,7 +398,6 @@ class PlatformInfo:
                     if not src.exists() or not src.is_file():
                         continue
 
-                    # .bin template files go to zapret/files/fake/
                     if src.suffix == ".bin":
                         dst_dir = self.zapret_dir / "files" / "fake"
                         dst_dir.mkdir(parents=True, exist_ok=True)
@@ -395,7 +408,6 @@ class PlatformInfo:
                             shutil.copy2(str(src), str(dst))
                         copied_bin.add(src.name)
                     else:
-                        # ipset/hostlist .txt files go to zapret/ipset/
                         dst = zapret_ipset / src.name
                         if src.name in copied_ipset:
                             continue
@@ -403,16 +415,14 @@ class PlatformInfo:
                             shutil.copy2(str(src), str(dst))
                         copied_ipset.add(src.name)
 
-    def _install_zapret_service_unit(self, strategy_name: str = ""):
+    def _install_zapret_service_unit(self, strategy_name: str = "") -> None:
         official_service = Path("/etc/systemd/system/zapret.service")
         official_link = self.zapret_dir / "init.d" / "systemd" / "zapret.service"
 
         if not official_service.exists() and official_link.exists():
             shutil.copy2(str(official_link), str(official_service))
-            print(f"[mangopret] Installed official zapret.service")
+            logger.info("Installed official zapret.service")
 
-        # Ensure the ExecStart script has execute permissions (shutil.copy2 may
-        # preserve non-executable perms from the tarball, causing 203/EXEC).
         self._fix_init_script_perms()
 
         try:
@@ -420,48 +430,44 @@ class PlatformInfo:
                 ["systemctl", "daemon-reload"],
                 capture_output=True, text=True, timeout=10,
             )
-        except Exception as e:
-            print(f"[mangopret] daemon-reload failed: {e}")
+        except Exception as exc:
+            logger.warning("daemon-reload failed: %s", exc)
 
-    def _fix_init_script_perms(self):
-        """Ensure init scripts referenced by zapret.service are executable.
-        Also fix ipset/*.sh scripts — the tarball may not preserve +x bits."""
-        import re
-
-        # Fix ExecStart/ExecStop/ExecReload scripts from the service unit
+    def _fix_init_script_perms(self) -> None:
         service_file = Path("/etc/systemd/system/zapret.service")
         if service_file.exists():
             try:
                 content = service_file.read_text(encoding="utf-8")
-                for match in re.finditer(r'^Exec(?:Start|Stop|Reload)\s*=\s*(.+)$', content, re.MULTILINE):
+                for match in re.finditer(
+                    r'^Exec(?:Start|Stop|Reload)\s*=\s*(.+)$', content, re.MULTILINE
+                ):
                     cmd_path = match.group(1).strip().split()[0] if match.group(1).strip() else ""
-                    if cmd_path and not cmd_path.startswith('-') and not cmd_path.startswith('/usr'):
+                    if cmd_path and not cmd_path.startswith("-") and not cmd_path.startswith("/usr"):
                         script = Path(cmd_path)
                         if script.exists() and not os.access(str(script), os.X_OK):
                             script.chmod(script.stat().st_mode | 0o111)
-                            print(f"[mangopret] Fixed execute permission on {script}")
-            except Exception as e:
-                print(f"[mangopret] Warning: could not fix init script perms: {e}")
+                            logger.info("Fixed execute permission on %s", script)
+            except Exception as exc:
+                logger.warning("Could not fix init script perms: %s", exc)
 
-        # Fix ipset/*.sh scripts (sourced by the init system but also called directly)
         ipset_dir = self.zapret_dir / "ipset"
         if ipset_dir.is_dir():
             for sh_file in ipset_dir.glob("*.sh"):
                 if not os.access(str(sh_file), os.X_OK):
                     try:
                         sh_file.chmod(sh_file.stat().st_mode | 0o111)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("Failed to fix perms on %s: %s", sh_file, exc)
 
     def _get_config_value(self, key: str, default: str) -> str:
         try:
             config_file = self.config_dir / "config.json"
             if config_file.exists():
-                with open(config_file, 'r') as f:
+                with open(config_file, "r") as f:
                     config = json.load(f)
                 return config.get(key, default)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Failed to read config value %s: %s", key, exc)
         return default
 
     def _systemd_cmd(self, action: str) -> Tuple[bool, str]:
@@ -471,8 +477,8 @@ class PlatformInfo:
                 capture_output=True, text=True, timeout=10,
             )
             return (r.returncode == 0, r.stderr.strip() if r.stderr else "")
-        except Exception as e:
-            return (False, str(e))
+        except Exception as exc:
+            return (False, str(exc))
 
     def start_systemd_service(self) -> Tuple[bool, str]:
         return self._systemd_cmd("start")
@@ -496,8 +502,8 @@ class PlatformInfo:
                     unit_file.unlink()
             subprocess.run(["systemctl", "daemon-reload"], capture_output=True, timeout=10)
             return (True, "")
-        except Exception as e:
-            return (False, str(e))
+        except Exception as exc:
+            return (False, str(exc))
 
     def _windows_svc_cmd(self, action: str) -> Tuple[bool, str]:
         if not self.is_windows:
@@ -509,8 +515,8 @@ class PlatformInfo:
                 creationflags=_WIN_CREATE_NO_WINDOW,
             )
             return (r.returncode == 0, r.stderr.strip() if r.stderr else "")
-        except Exception as e:
-            return (False, str(e))
+        except Exception as exc:
+            return (False, str(exc))
 
     def start_windows_service(self) -> Tuple[bool, str]:
         return self._windows_svc_cmd("start")
@@ -547,8 +553,8 @@ class PlatformInfo:
                     creationflags=_WIN_CREATE_NO_WINDOW,
                 )
             return (True, "")
-        except Exception as e:
-            return (False, str(e))
+        except Exception as exc:
+            return (False, str(exc))
 
     def service_install(self, strategy=None, strategy_name: str = "") -> Tuple[bool, str]:
         if self.is_windows:
@@ -579,10 +585,11 @@ class PlatformInfo:
                 creationflags=_WIN_CREATE_NO_WINDOW,
             )
             return (r.returncode == 0, r.stderr.strip() if r.stderr else "")
-        except Exception as e:
-            return (False, str(e))
+        except Exception as exc:
+            return (False, str(exc))
 
     # ------------------------------------------------------------------ journal
+
     def get_journal_logs(self, lines: int = 50) -> str:
         if not self.is_linux:
             return ""
@@ -592,10 +599,12 @@ class PlatformInfo:
                 capture_output=True, text=True, timeout=10,
             )
             return r.stdout
-        except Exception:
+        except Exception as exc:
+            logger.warning("Failed to get journal logs: %s", exc)
             return ""
 
     # ------------------------------------------------------------------ startup (autostart on login)
+
     def is_startup_enabled(self) -> bool:
         if self.is_windows:
             try:
@@ -605,7 +614,8 @@ class PlatformInfo:
                     creationflags=_WIN_CREATE_NO_WINDOW,
                 )
                 return r.returncode == 0
-            except Exception:
+            except Exception as exc:
+                logger.debug("Startup check failed: %s", exc)
                 return False
         else:
             return (Path.home() / ".config" / "autostart" / "mangopret.desktop").exists()
@@ -633,8 +643,8 @@ class PlatformInfo:
             dest.write_text(content, encoding="utf-8")
             dest.chmod(0o644)
             return (True, "")
-        except Exception as e:
-            return (False, str(e))
+        except Exception as exc:
+            return (False, str(exc))
 
     def _enable_startup_windows(self) -> Tuple[bool, str]:
         try:
@@ -655,8 +665,8 @@ class PlatformInfo:
             if r.returncode == 0:
                 return (True, "")
             return (False, r.stderr.strip() or r.stdout.strip())
-        except Exception as e:
-            return (False, str(e))
+        except Exception as exc:
+            return (False, str(exc))
 
     def disable_startup(self) -> Tuple[bool, str]:
         if self.is_windows:
@@ -670,8 +680,8 @@ class PlatformInfo:
                 dest.unlink()
                 return (True, "")
             return (False, "Not installed")
-        except Exception as e:
-            return (False, str(e))
+        except Exception as exc:
+            return (False, str(exc))
 
     def _disable_startup_windows(self) -> Tuple[bool, str]:
         try:
@@ -683,10 +693,11 @@ class PlatformInfo:
             if r.returncode == 0:
                 return (True, "")
             return (False, r.stderr.strip() or r.stdout.strip())
-        except Exception as e:
-            return (False, str(e))
+        except Exception as exc:
+            return (False, str(exc))
 
     # ------------------------------------------------------------------ desktop entry
+
     def create_desktop_entry(self) -> Tuple[bool, str]:
         if not self.is_linux:
             return (False, "Not Linux")
@@ -705,8 +716,8 @@ class PlatformInfo:
                 dest.chmod(0o644)
                 return (True, str(dest))
             return (False, "mangopret.desktop not found")
-        except Exception as e:
-            return (False, str(e))
+        except Exception as exc:
+            return (False, str(exc))
 
     def remove_desktop_entry(self) -> Tuple[bool, str]:
         if not self.is_linux:
@@ -717,8 +728,8 @@ class PlatformInfo:
                 dest.unlink()
                 return (True, "")
             return (False, "Not installed")
-        except Exception as e:
-            return (False, str(e))
+        except Exception as exc:
+            return (False, str(exc))
 
     def is_desktop_entry_installed(self) -> bool:
         if not self.is_linux:

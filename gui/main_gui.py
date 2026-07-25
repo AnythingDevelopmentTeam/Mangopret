@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Mangopret GUI entry point. Requires PyQt6."""
 import sys
 import os
 import signal
@@ -19,12 +18,14 @@ from core.config import Config
 from core.lists import ListManager
 from ui.main_window import MainWindow
 from ui.theme import DARK_THEME
+from core.log import get_logger
+
+logger = get_logger(__name__)
 
 _SOCKET_NAME = "mangopret-gui"
 
 
-def _try_activate_existing():
-    """Try to connect to an already-running instance. Returns True if one exists."""
+def _try_activate_existing() -> bool:
     socket = QLocalSocket()
     socket.connectToServer(_SOCKET_NAME)
     if socket.waitForConnected(500):
@@ -35,16 +36,13 @@ def _try_activate_existing():
     return False
 
 
-def _start_server(parent_window):
-    """Start a local server so future instances can notify us.
-    Removes stale socket files if the previous instance crashed."""
+def _start_server(parent_window) -> QLocalServer | None:
     server = QLocalServer()
-    # Remove any stale socket from a crashed instance
     QLocalServer.removeServer(_SOCKET_NAME)
     if not server.listen(_SOCKET_NAME):
         return None
 
-    def on_new_connection():
+    def on_new_connection() -> None:
         sock = server.nextPendingConnection()
         if sock:
             sock.waitForReadyRead(1000)
@@ -57,7 +55,6 @@ def _start_server(parent_window):
     return server
 
 
-# Actions that need root; surfaced as a set for quick lookup
 _REQUIRES_ROOT = frozenset({
     "start", "stop", "install_service", "remove_service",
     "enable_autostart", "disable_autostart", "install_desktop",
@@ -65,8 +62,7 @@ _REQUIRES_ROOT = frozenset({
 })
 
 
-def _relaunch_elevated(args):
-    """Re-launch this script via pkexec, persisting all original args."""
+def _relaunch_elevated(args: list[str]) -> bool:
     script = sys.argv[0]
     pkexec_args = [script] + args
     try:
@@ -78,14 +74,13 @@ def _relaunch_elevated(args):
                 "XAUTHORITY": os.environ.get("XAUTHORITY", ""),
             },
         )
-    except Exception as e:
-        print(f"[mangopret] Failed to relaunch with pkexec: {e}")
+    except Exception as exc:
+        logger.error("Failed to relaunch with pkexec: %s", exc)
         return False
     return True
 
 
-def _run_pending(window):
-    """Execute a root action that was queued before a pkexec relaunch."""
+def _run_pending(window) -> None:
     data = window.config.get("_pending_root_action")
     if not data:
         return
@@ -95,8 +90,7 @@ def _run_pending(window):
     _dispatch(window, action, payload)
 
 
-def _dispatch(window, action, payload):
-    """Route a named action to the corresponding MainWindow method."""
+def _dispatch(window, action: str, payload: dict) -> None:
     if action == "start":
         window._start_strategy(payload.get("strategy", ""))
     elif action == "stop":
@@ -117,12 +111,12 @@ def _dispatch(window, action, payload):
         window._update_hosts_root()
 
 
-def _handle_sigint(sig, frame):
+def _handle_sigint(sig, frame) -> None:
     from PyQt6.QtCore import QTimer
     QTimer.singleShot(0, QApplication.quit)
 
 
-def _apply_theme(app, platform):
+def _apply_theme(app, platform: PlatformInfo) -> None:
     if platform.is_windows:
         available = QStyleFactory.keys()
         for name in ("windows11", "windowsvista"):
@@ -135,7 +129,7 @@ def _apply_theme(app, platform):
         app.setStyleSheet("")
 
 
-def main():
+def main() -> None:
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     app = QApplication(sys.argv)
     signal.signal(signal.SIGINT, _handle_sigint)
@@ -160,8 +154,6 @@ def main():
     args = sys.argv[1:]
     start_minimized = "--minimized" in args or config.get("start_minimized", False)
 
-    # Single-instance guard: if another instance is already running, tell it
-    # to show itself and exit this process.
     if not _try_activate_existing():
         window = MainWindow(platform, config, list_manager, start_minimized=start_minimized)
         _server = _start_server(window)
@@ -170,15 +162,10 @@ def main():
         else:
             window.show()
 
-        # If elevated by pkexec, run any queued action then normal GUI loop
         if platform.IS_ROOT:
             _run_pending(window)
 
         sys.exit(app.exec())
-    else:
-        # Another instance was already running and was told to activate.
-        # Nothing more to do — this process exits naturally.
-        pass
 
 
 if __name__ == "__main__":

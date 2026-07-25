@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "mangopret"
+version = "2.0.0"
+description = "Cross-platform GUI/CLI manager for zapret DPI bypass"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "AnythingDevelopmentTeam"}]
+
+dependencies = [
+    "PyQt6>=6.5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7",
+    "pytest-cov>=4",
+]
+
+[tool.setuptools.packages.find]
+include = ["gui*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

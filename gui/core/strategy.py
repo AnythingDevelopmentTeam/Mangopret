@@ -1,17 +1,20 @@
 import json
 import os
 import re
+import traceback
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 from dataclasses import dataclass, field
+from core.log import get_logger
 
+logger = get_logger(__name__)
 
-BINARY_ALIASES = {
+BINARY_ALIASES: dict[str, str] = {
     "winws.exe": "nfqws",
     "nfqws": "nfqws",
 }
 
-DESCRIPTIONS = {
+DESCRIPTIONS: dict[str, tuple[str, str]] = {
     "general": ("General", "Default strategy. Multisplit with seqovl, fake for UDP. Try this first."),
     "general_alt": ("General (ALT)", "Fake+fakedsplit with ts fooling. Good alternative if default doesn't work."),
     "general_alt2": ("General (ALT2)", "Multisplit with seqovl=652, split-pos=2. Variant with different offsets."),
@@ -45,10 +48,10 @@ DESCRIPTIONS = {
 @dataclass
 class StrategyRule:
     name: str = ""
-    params: dict = field(default_factory=dict)
+    params: dict[str, Any] = field(default_factory=dict)
 
-    def to_args(self) -> list:
-        args = []
+    def to_args(self) -> list[str]:
+        args: list[str] = []
         for key, value in self.params.items():
             if isinstance(value, list):
                 for v in value:
@@ -70,10 +73,10 @@ class Strategy:
     author: str = "vesno4null"
     wf_tcp: str = "80,443,2053,2083,2087,2096,8443"
     wf_udp: str = "443,19294-19344,50000-50100"
-    rules: list = field(default_factory=list)
+    rules: list[StrategyRule] = field(default_factory=list)
     path: Optional[str] = None
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "name": self.name,
@@ -93,8 +96,8 @@ class Strategy:
         bin_dir: str,
         lists_dir: str,
         is_windows: bool = True,
-    ) -> list:
-        cmd = [str(binary_path)]
+    ) -> list[str]:
+        cmd: list[str] = [str(binary_path)]
 
         if is_windows:
             raw_tcp = self.wf_tcp.replace("%GameFilterTCP%", "").replace("{game_filter_tcp}", "")
@@ -108,7 +111,7 @@ class Strategy:
 
         for i, rule in enumerate(self.rules):
             rule_args = rule.to_args()
-            resolved = []
+            resolved: list[str] = []
             skip = False
 
             for arg in rule_args:
@@ -144,9 +147,7 @@ class Strategy:
 
         if value.startswith(zapret_bin):
             local = bin_dir.rstrip("\\/") + "/" + value[len(zapret_bin):]
-            if not os.path.isfile(local) and not os.path.isfile(value):
-                pass
-            elif os.path.isfile(local) and not os.path.isfile(value):
+            if os.path.isfile(local) and not os.path.isfile(value):
                 value = local
 
         return value
@@ -184,7 +185,8 @@ class StrategyParser:
                 s.rules.append(rule)
 
             return s
-        except Exception:
+        except Exception as exc:
+            logger.warning("Failed to parse %s: %s", path, exc)
             return None
 
     @staticmethod
@@ -222,9 +224,9 @@ class StrategyParser:
 
             tokens = StrategyParser._tokenize(cmd_text)
 
-            rules = []
-            current_rule = {}
-            rule_names = []
+            rules: list[StrategyRule] = []
+            current_rule: dict[str, Any] = {}
+            rule_names: list[str] = []
 
             for token in tokens:
                 if token == "--new":
@@ -307,10 +309,9 @@ class StrategyParser:
             s.path = str(path)
             return s
 
-        except Exception as e:
-            print(f"  [ERROR] Failed to parse {path.name}: {e}")
-            import traceback
-            traceback.print_exc()
+        except Exception as exc:
+            logger.error("Failed to parse .bat %s: %s", path.name, exc)
+            logger.debug(traceback.format_exc())
             return None
 
     @staticmethod
@@ -332,7 +333,7 @@ class StrategyParser:
         return val
 
     @staticmethod
-    def _generate_rule_name(rule: dict, fallback_names: list) -> str:
+    def _generate_rule_name(rule: dict[str, Any], fallback_names: list[str]) -> str:
         if fallback_names:
             base = fallback_names[0]
         elif "filter-udp" in rule:
@@ -348,21 +349,20 @@ class StrategyParser:
 
         desync = rule.get("dpi-desync", "")
         if desync:
-            short_desync = desync.split(",")[0]
             if "game" in str(rule.get("ipset", "")).lower():
                 base = f"Game {base}"
             elif "ipset" in str(rule.get("ipset", "")):
                 base = f"IPSet {base}"
 
-        seen = []
+        seen: list[str] = []
         for part in base.split():
             if part not in seen:
                 seen.append(part)
         return " ".join(seen)
 
     @staticmethod
-    def _tokenize(text: str) -> list:
-        tokens = []
+    def _tokenize(text: str) -> list[str]:
+        tokens: list[str] = []
         current = ""
         in_quote = False
         quote_char = ""
@@ -400,10 +400,10 @@ class StrategyParser:
         return tokens
 
     @staticmethod
-    def to_strategy_file(strategy: Strategy, path: str):
+    def to_strategy_file(strategy: Strategy, path: str) -> None:
         data = strategy.to_dict()
 
-        ordered = {
+        ordered: dict[str, Any] = {
             "id": data["id"],
             "name": data["name"],
             "description": data["description"],
@@ -419,32 +419,32 @@ class StrategyParser:
             f.write("\n")
 
     @staticmethod
-    def convert_all_bats(bat_dir: str, output_dir: str):
+    def convert_all_bats(bat_dir: str, output_dir: str) -> list[Strategy]:
         bat_dir = Path(bat_dir)
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        converted = []
-        failed = []
+        converted: list[Strategy] = []
+        failed: list[str] = []
 
         bat_files = sorted(bat_dir.glob("general*.bat"))
         if not bat_files:
-            print(f"  No general*.bat files found in {bat_dir}")
+            logger.info("No general*.bat files found in %s", bat_dir)
             return converted
 
         for bat_file in bat_files:
-            print(f"  Converting: {bat_file.name} ... ", end="", flush=True)
+            logger.info("Converting: %s ... ", bat_file.name)
             strategy = StrategyParser._from_bat(bat_file)
             if strategy and strategy.rules:
                 out_path = output_dir / f"{strategy.id}.strategy"
                 StrategyParser.to_strategy_file(strategy, out_path)
                 converted.append(strategy)
-                print(f"OK ({len(strategy.rules)} rules)")
+                logger.info("OK (%d rules)", len(strategy.rules))
             else:
                 failed.append(bat_file.name)
-                print("FAILED")
+                logger.warning("FAILED: %s", bat_file.name)
 
         if failed:
-            print(f"\n  Failed: {', '.join(failed)}")
+            logger.warning("Failed: %s", ", ".join(failed))
 
         return converted
