@@ -21,66 +21,75 @@ jobs:
           $out = "$env:RUNNER_TEMP\python.tar.gz"
           Invoke-WebRequest -Uri $url -OutFile $out
           tar -xzf $out -C "$env:RUNNER_TEMP\python-dist"
-          # find python.exe
           $py = Get-ChildItem "$env:RUNNER_TEMP\python-dist" -Recurse -Filter python.exe | Select-Object -First 1
-          if (-not $py) { throw "python.exe not found in portable dist" }
+          if (-not $py) { throw "python.exe not found" }
           echo "PYTHON_DIR=$($py.Directory.FullName)" >> $env:GITHUB_ENV
 
       - name: Bootstrap pip and install PyQt6
         shell: pwsh
         run: |
           $py = "$env:PYTHON_DIR\python.exe"
-          # get-pip
           Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile "$env:RUNNER_TEMP\get-pip.py"
           & $py "$env:RUNNER_TEMP\get-pip.py" --no-warn-script-location
           & $py -m pip install "PyQt6>=6.5" --no-warn-script-location
 
-      - name: Bundle app
+      - name: Bundle portable app
         shell: pwsh
         run: |
-          $dist = "mangopret-${{ github.ref_name }}-win64"
+          $V = "${{ github.ref_name }}"
+          $dist = "mangopret-${V}-win64"
           New-Item -ItemType Directory -Path $dist -Force
-          # copy portable python
           Copy-Item "$env:PYTHON_DIR\*" "$dist\python\" -Recurse -Force
-          # copy app files
           Copy-Item "gui" "$dist\" -Recurse -Force
           Copy-Item "lists" "$dist\" -Recurse -Force
           Copy-Item "bin" "$dist\" -Recurse -Force
           Copy-Item "pip" "$dist\" -Recurse -Force
           Copy-Item "run.bat", "run_gui.bat", "README.md", "README.en.md", "LICENSE.txt" "$dist\"
-          # compress
           Compress-Archive -Path "$dist\*" -DestinationPath "$dist.zip" -Force
+          echo "DIST_DIR=$dist" >> $env:GITHUB_ENV
+
+      - name: Build NSIS installer
+        shell: pwsh
+        run: |
+          # Download NSIS
+          $nsisUrl = "https://sourceforge.net/projects/nsis/files/NSIS%203/3.10/nsis-3.10.zip/download"
+          $nsisZip = "$env:RUNNER_TEMP\nsis.zip"
+          curl.exe -L -s -o $nsisZip $nsisUrl
+          tar -xf $nsisZip -C "$env:RUNNER_TEMP"
+          $makensis = "$env:RUNNER_TEMP\nsis-3.10\makensis.exe"
+          # Build installer
+          & $makensis "-DVERSION=${{ github.ref_name }}" "packaging\windows\mangopret-installer.nsi"
+          Move-Item "mangopret-${{ github.ref_name }}-setup.exe" "$env:RUNNER_TEMP\" -Force
 
       - uses: actions/upload-artifact@v4
         with:
           name: win64-bundle
-          path: mangopret-${{ github.ref_name }}-win64.zip
+          path: |
+            mangopret-${{ github.ref_name }}-win64.zip
+            ${{ env.RUNNER_TEMP }}\mangopret-${{ github.ref_name }}-setup.exe
 
   build-linux:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build portable tar.gz
+      - name: Build AppImage
         run: |
           VERSION="${{ github.ref_name }}"
-          DIST="mangopret-${VERSION}-linux-$(uname -m)"
-          mkdir -p "$DIST"
-          cp -r gui lists bin .service "$DIST/"
-          cp run.sh run_gui.sh silent_install.sh README.md README.en.md LICENSE.txt "$DIST/"
-          cp -r pip "$DIST/"
-          # create launcher that auto-installs deps
-          tar czf "${DIST}.tar.gz" "$DIST"
-
-      - name: Compute SHA256
-        run: sha256sum mangopret-*.tar.gz > checksums-linux.txt
+          # Install deps
+          sudo apt-get update -qq && sudo apt-get install -y -qq fuse libfuse2 wget
+          # Run build script
+          bash packaging/linux/build-appimage.sh "${VERSION#v}"
+          # Move artifacts
+          mv mangopret-*.AppImage mangopret-*.tar.gz* . 2>/dev/null || true
+          ls -la
 
       - uses: actions/upload-artifact@v4
         with:
           name: linux-bundle
           path: |
+            mangopret-*.AppImage
             mangopret-*.tar.gz
-            checksums-linux.txt
 
   release:
     needs: [build-windows, build-linux]
@@ -90,7 +99,7 @@ jobs:
 
       - name: Compute SHA256
         run: |
-          sha256sum win64-bundle/*.zip linux-bundle/*.tar.gz > checksums.txt
+          sha256sum win64-bundle/*.zip win64-bundle/*.exe linux-bundle/*.AppImage linux-bundle/*.tar.gz > checksums.txt
           cat checksums.txt
 
       - name: Create Release
@@ -98,7 +107,8 @@ jobs:
         with:
           files: |
             win64-bundle/*.zip
+            win64-bundle/*.exe
+            linux-bundle/*.AppImage
             linux-bundle/*.tar.gz
-            linux-bundle/checksums-linux.txt
             checksums.txt
           generate_release_notes: true

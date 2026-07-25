@@ -7,6 +7,13 @@ import subprocess
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BASE_DIR = os.path.dirname(SCRIPT_DIR)
 
+# qt platform plugin path for portable python builds
+_qt_plugin_path = os.path.join(
+    os.path.dirname(sys.executable), "Lib", "site-packages", "Qt6", "plugins"
+)
+if os.path.isdir(_qt_plugin_path):
+    os.environ.setdefault("QT_QPA_PLATFORM_PLUGIN_PATH", _qt_plugin_path)
+
 sys.path.insert(0, SCRIPT_DIR)
 
 from PyQt6.QtWidgets import QApplication, QStyleFactory
