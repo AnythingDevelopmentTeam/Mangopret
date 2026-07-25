@@ -40,10 +40,16 @@ fi
 # Install PyQt6 if missing
 if ! "$PYTHON" -c "import PyQt6" 2>/dev/null; then
     echo "Installing PyQt6..."
-    "$PYTHON" -m pip install --user PyQt6
+    "$PYTHON" -m pip install --user "PyQt6>=6.5"
     echo "PyQt6 installed."
 else
     echo "PyQt6 already installed."
+fi
+
+# Install dev extras if requirements-dev.txt exists
+if [ -f "$PROJECT_DIR/requirements-dev.txt" ]; then
+    echo "Installing development dependencies..."
+    "$PYTHON" -m pip install --user -r "$PROJECT_DIR/requirements-dev.txt" 2>/dev/null || true
 fi
 
 echo ""
