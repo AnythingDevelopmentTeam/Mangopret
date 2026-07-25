@@ -1,0 +1,103 @@
+name: Build & Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download embeddable Python
+        shell: pwsh
+        run: |
+          $url = "https://github.com/niess/python-build-standalone/releases/download/20250312/cpython-3.11.11+20250312-x86_64-pc-windows-msvc-shared-install_only.tar.gz"
+          $out = "$env:RUNNER_TEMP\python.tar.gz"
+          Invoke-WebRequest -Uri $url -OutFile $out
+          tar -xzf $out -C "$env:RUNNER_TEMP\python-dist"
+          # find python.exe
+          $py = Get-ChildItem "$env:RUNNER_TEMP\python-dist" -Recurse -Filter python.exe | Select-Object -First 1
+          if (-not $py) { throw "python.exe not found in portable dist" }
+          echo "PYTHON_DIR=$($py.Directory.FullName)" >> $env:GITHUB_ENV
+
+      - name: Bootstrap pip and install PyQt6
+        shell: pwsh
+        run: |
+          $py = "$env:PYTHON_DIR\python.exe"
+          # get-pip
+          Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile "$env:RUNNER_TEMP\get-pip.py"
+          & $py "$env:RUNNER_TEMP\get-pip.py" --no-warn-script-location
+          & $py -m pip install "PyQt6>=6.5" --no-warn-script-location
+
+      - name: Bundle app
+        shell: pwsh
+        run: |
+          $dist = "mangopret-${{ github.ref_name }}-win64"
+          New-Item -ItemType Directory -Path $dist -Force
+          # copy portable python
+          Copy-Item "$env:PYTHON_DIR\*" "$dist\python\" -Recurse -Force
+          # copy app files
+          Copy-Item "gui" "$dist\" -Recurse -Force
+          Copy-Item "lists" "$dist\" -Recurse -Force
+          Copy-Item "bin" "$dist\" -Recurse -Force
+          Copy-Item "pip" "$dist\" -Recurse -Force
+          Copy-Item "run.bat", "run_gui.bat", "README.md", "README.en.md", "LICENSE.txt" "$dist\"
+          # compress
+          Compress-Archive -Path "$dist\*" -DestinationPath "$dist.zip" -Force
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: win64-bundle
+          path: mangopret-${{ github.ref_name }}-win64.zip
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build portable tar.gz
+        run: |
+          VERSION="${{ github.ref_name }}"
+          DIST="mangopret-${VERSION}-linux-$(uname -m)"
+          mkdir -p "$DIST"
+          cp -r gui lists bin .service "$DIST/"
+          cp run.sh run_gui.sh silent_install.sh README.md README.en.md LICENSE.txt "$DIST/"
+          cp -r pip "$DIST/"
+          # create launcher that auto-installs deps
+          tar czf "${DIST}.tar.gz" "$DIST"
+
+      - name: Compute SHA256
+        run: sha256sum mangopret-*.tar.gz > checksums-linux.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-bundle
+          path: |
+            mangopret-*.tar.gz
+            checksums-linux.txt
+
+  release:
+    needs: [build-windows, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+
+      - name: Compute SHA256
+        run: |
+          sha256sum win64-bundle/*.zip linux-bundle/*.tar.gz > checksums.txt
+          cat checksums.txt
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            win64-bundle/*.zip
+            linux-bundle/*.tar.gz
+            linux-bundle/checksums-linux.txt
+            checksums.txt
+          generate_release_notes: true
