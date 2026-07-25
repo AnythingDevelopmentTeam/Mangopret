@@ -42,27 +42,51 @@ exit /b 1
 :found_python
 :: Check PyQt6
 "%PYTHON%" -c "import PyQt6" 2>nul
-if %errorlevel% neq 0 (
-    echo.
-    echo PyQt6 not found. Installing...
+if %errorlevel% equ 0 goto :launch_gui
 
-    :: Try pip
-    "%PYTHON%" -m pip install PyQt6 2>nul
-    if %errorlevel% neq 0 (
-        echo.
-        echo Failed to install PyQt6 automatically.
-        echo.
-        echo Install manually:
-        echo   "%PYTHON%" -m pip install PyQt6
-        echo.
-        echo Or run CLI mode:
-        echo   run.bat install
-        echo.
-        pause
-        exit /b 1
-    )
+:: PyQt6 missing — try pip install
+echo.
+echo PyQt6 not found. Installing...
+
+"%PYTHON%" -m pip install PyQt6 2>nul
+if %errorlevel% equ 0 (
     echo PyQt6 installed successfully.
+    goto :launch_gui
 )
+
+:: pip itself may be missing — bootstrap from bundled get-pip.py
+echo pip not available, bootstrapping from bundled get-pip.py...
+set "GET_PIP=%SCRIPT_DIR%pip\get-pip.py"
+if not exist "%GET_PIP%" (
+    echo Error: %GET_PIP% not found
+    goto :pip_failed
+)
+
+"%PYTHON%" "%GET_PIP%" --no-warn-script-location 2>nul
+if %errorlevel% neq 0 (
+    echo Failed to bootstrap pip.
+    goto :pip_failed
+)
+
+:: Now retry PyQt6 install
+"%PYTHON%" -m pip install PyQt6 --no-warn-script-location 2>nul
+if %errorlevel% neq 0 (
+    goto :pip_failed
+)
+echo PyQt6 installed successfully.
+goto :launch_gui
+
+:pip_failed
+echo.
+echo Failed to install PyQt6 automatically.
+echo.
+echo Try running: pip\setup.bat
+echo Or run CLI mode: run.bat
+echo.
+pause
+exit /b 1
+
+:launch_gui
 
 :: Launch GUI
 cd /d "%GUI_DIR%"

@@ -1,14 +1,38 @@
-# Bundled Python runtime (download separately)
-python/
+/utils/test results
+/utils/game_filter.enabled
+/lists/ipset-exclude-user.txt
+/lists/list-general-user.txt
+/lists/list-exclude-user.txt
+/lists/*.backup
 
-# Bytecode cache
+.vscode/
+.idea/
+/build/
 __pycache__/
-*.pyc
+/python/
 
-# OS
+# Personal/scratch files
+mango.sj
+
+# OS files
 .DS_Store
 Thumbs.db
 
-# IDE
-.vscode/
-.idea/
+# Python
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+*.whl
+
+# Temp/log
+*.log
+*.pid
+*.tmp
+*.swp
+*.swo
+*~
+
+# Env
+.env
+.env.*

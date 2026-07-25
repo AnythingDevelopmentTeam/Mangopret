@@ -1,67 +1,69 @@
 {
-  "id": "general (ALT11)",
-  "name": "General (ALT11)",
-  "description": "Fake,multisplit with ts fooling, repeats=8. QUIC fake repeats=11.",
+  "id": "game (DISCORD)",
+  "name": "Game (DISCORD)",
+  "description": "Optimized for Discord voice/video. Aggressive QUIC fake + low-latency UDP handling.",
   "version": "1.0",
   "author": "vesno4null",
   "wf_tcp": "80,443,2053,2083,2087,2096,8443",
   "wf_udp": "443,19294-19344,50000-50100",
   "rules": [
     {
-      "name": "UDP 443",
+      "name": "UDP 443 QUIC",
       "filter-udp": "443",
-      "hostlist": [
-        "{lists}/list-general.txt",
-        "{lists}/list-general-user.txt"
-      ],
-      "hostlist-exclude": [
-        "{lists}/list-exclude.txt",
-        "{lists}/list-exclude-user.txt"
-      ],
-      "ipset-exclude": [
-        "{lists}/ipset-exclude.txt",
-        "{lists}/ipset-exclude-user.txt"
-      ],
+      "filter-l7": "quic",
+      "hostlist-domains": "discord.com,discord.gg,discord.media,discordapp.com,discordapp.net",
       "dpi-desync": "fake",
-      "dpi-desync-repeats": "11",
+      "dpi-desync-repeats": "15",
       "dpi-desync-fake-quic": "{bin}/quic_initial_www_google_com.bin"
     },
     {
-      "name": "UDP 19294-19344,50000-50100",
-      "filter-udp": "19294-19344,50000-50100",
-      "filter-l7": "discord,stun",
+      "name": "UDP 19294-19344 Discord Voice",
+      "filter-udp": "19294-19344",
+      "filter-l7": "discord,unknown",
       "dpi-desync": "fake",
-      "dpi-desync-fake-discord": "{bin}/ACTIVE_DISCORD_UDP.bin",
-      "dpi-desync-fake-stun": "{bin}/ACTIVE_DISCORD_UDP.bin",
-      "dpi-desync-repeats": "6"
+      "dpi-desync-fake-discord": [
+        "{bin}/ACTIVE_DISCORD_UDP.bin",
+        "{bin}/ACTIVE_GAME_UDP.bin"
+      ],
+      "dpi-desync-fake-unknown-udp": [
+        "{bin}/ACTIVE_DISCORD_UDP.bin",
+        "{bin}/ACTIVE_GAME_UDP.bin"
+      ],
+      "dpi-desync-repeats": "8"
     },
     {
-      "name": "TCP 2053,2083,2087,2096,8443",
+      "name": "UDP 50000-50100 Discord Alt",
+      "filter-udp": "50000-50100",
+      "filter-l7": "discord,stun,unknown",
+      "dpi-desync": "fake",
+      "dpi-desync-fake-discord": [
+        "{bin}/ACTIVE_DISCORD_UDP.bin",
+        "{bin}/ACTIVE_GAME_UDP.bin"
+      ],
+      "dpi-desync-fake-stun": "{bin}/ACTIVE_DISCORD_UDP.bin",
+      "dpi-desync-fake-unknown-udp": "{bin}/ACTIVE_GAME_UDP.bin",
+      "dpi-desync-repeats": "8"
+    },
+    {
+      "name": "TCP 2053,2083,2087,2096,8443 Discord Media",
       "filter-tcp": "2053,2083,2087,2096,8443",
       "hostlist-domains": "discord.media",
-      "dpi-desync": "fake,multisplit",
-      "dpi-desync-split-seqovl": "681",
-      "dpi-desync-split-pos": "1",
+      "dpi-desync": "fake",
+      "dpi-desync-repeats": "11",
       "dpi-desync-fooling": "ts",
-      "dpi-desync-repeats": "8",
-      "dpi-desync-split-seqovl-pattern": "{bin}/tls_clienthello_www_google_com.bin",
       "dpi-desync-fake-tls": "{bin}/tls_clienthello_www_google_com.bin"
     },
     {
-      "name": "TCP 443",
+      "name": "TCP 443 Discord",
       "filter-tcp": "443",
-      "hostlist": "{lists}/list-google.txt",
-      "ip-id": "zero",
-      "dpi-desync": "fake,multisplit",
-      "dpi-desync-split-seqovl": "681",
-      "dpi-desync-split-pos": "1",
+      "hostlist-domains": "discord.com,discord.gg,discord.media,discordapp.com,discordapp.net",
+      "dpi-desync": "fake",
+      "dpi-desync-repeats": "11",
       "dpi-desync-fooling": "ts",
-      "dpi-desync-repeats": "8",
-      "dpi-desync-split-seqovl-pattern": "{bin}/tls_clienthello_www_google_com.bin",
       "dpi-desync-fake-tls": "{bin}/tls_clienthello_www_google_com.bin"
     },
     {
-      "name": "TCP 80,443",
+      "name": "TCP 80,443 General fallback",
       "filter-tcp": "80,443",
       "hostlist": [
         "{lists}/list-general.txt",
@@ -75,16 +77,10 @@
         "{lists}/ipset-exclude.txt",
         "{lists}/ipset-exclude-user.txt"
       ],
-      "dpi-desync": "fake,multisplit",
-      "dpi-desync-split-seqovl": "664",
-      "dpi-desync-split-pos": "1",
+      "dpi-desync": "fake",
+      "dpi-desync-repeats": "6",
       "dpi-desync-fooling": "ts",
-      "dpi-desync-repeats": "8",
-      "dpi-desync-split-seqovl-pattern": "{bin}/tls_clienthello_max_ru.bin",
-      "dpi-desync-fake-tls": [
-        "{bin}/stun.bin",
-        "{bin}/tls_clienthello_max_ru.bin"
-      ],
+      "dpi-desync-fake-tls": "{bin}/tls_clienthello_www_google_com.bin",
       "dpi-desync-fake-http": "{bin}/tls_clienthello_max_ru.bin"
     },
     {
@@ -115,16 +111,10 @@
         "{lists}/ipset-exclude.txt",
         "{lists}/ipset-exclude-user.txt"
       ],
-      "dpi-desync": "fake,multisplit",
-      "dpi-desync-split-seqovl": "664",
-      "dpi-desync-split-pos": "1",
+      "dpi-desync": "fake",
+      "dpi-desync-repeats": "6",
       "dpi-desync-fooling": "ts",
-      "dpi-desync-repeats": "8",
-      "dpi-desync-split-seqovl-pattern": "{bin}/tls_clienthello_max_ru.bin",
-      "dpi-desync-fake-tls": [
-        "{bin}/stun.bin",
-        "{bin}/tls_clienthello_max_ru.bin"
-      ],
+      "dpi-desync-fake-tls": "{bin}/tls_clienthello_www_google_com.bin",
       "dpi-desync-fake-http": "{bin}/tls_clienthello_max_ru.bin"
     }
   ]

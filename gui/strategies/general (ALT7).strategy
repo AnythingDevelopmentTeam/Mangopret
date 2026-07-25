@@ -3,7 +3,7 @@
   "name": "General (ALT7)",
   "description": "Multisplit with split-pos=2,sniext+1, seqovl=679 for hostlisted; syndata for ipset.",
   "version": "1.0",
-  "author": "Mangopret",
+  "author": "vesno4null",
   "wf_tcp": "80,443,2053,2083,2087,2096,8443",
   "wf_udp": "443,19294-19344,50000-50100",
   "rules": [

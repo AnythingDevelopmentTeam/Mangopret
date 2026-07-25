@@ -2,10 +2,8 @@ import os
 import sys
 import subprocess
 import shutil
-import zipfile
 import tarfile
 import urllib.request
-import json
 import tempfile
 from pathlib import Path
 from typing import Optional, Tuple, List
@@ -69,7 +67,7 @@ class PlatformInfo:
 
     def is_zapret_installed(self) -> bool:
         if self.is_windows:
-            return self.is_binary_present()
+            return True
         return (self.zapret_dir / "install_easy.sh").exists() or (
             self.zapret_dir / "config"
         ).exists()
@@ -82,7 +80,9 @@ class PlatformInfo:
     # ------------------------------------------------------------------ install
     def install_zapret(self, callback=None) -> bool:
         if self.is_windows:
-            return self._install_zapret_windows(callback)
+            if callback:
+                callback("Zapret is already bundled — nothing to install.")
+            return True
         return self._install_zapret_linux(callback)
 
     def _install_zapret_linux(self, callback=None) -> bool:
@@ -147,87 +147,6 @@ class PlatformInfo:
             if callback:
                 callback(f"Error: {e}")
             return False
-        finally:
-            if tmpdir:
-                shutil.rmtree(tmpdir, ignore_errors=True)
-
-    def _install_zapret_windows(self, callback=None) -> bool:
-        tmpdir = Path(tempfile.mkdtemp(prefix="mangopret_"))
-        try:
-            if callback:
-                callback("Downloading zapret-win-bundle ...")
-
-            asset_url = None
-            # Try GitHub API first
-            try:
-                releases_url = "https://api.github.com/repos/bol-van/zapret/releases/latest"
-                req = urllib.request.Request(releases_url, headers={"User-Agent": "Mangopret/1.0"})
-                with urllib.request.urlopen(req, timeout=15) as resp:
-                    data = json.loads(resp.read().decode())
-                for asset in data.get("assets", []):
-                    name = asset["name"].lower()
-                    if name.endswith(".zip") and ("win" in name or "bundle" in name):
-                        asset_url = asset["browser_download_url"]
-                        break
-            except Exception:
-                pass
-
-            # Fallback: try direct download URLs
-            if not asset_url:
-                candidates = [
-                    f"zapret-win-bundle-v{ZAPRET_VERSION}.zip",
-                    "zapret-win-bundle.zip",
-                    f"zapret-v{ZAPRET_VERSION}-win.zip",
-                    f"zapret-v{ZAPRET_VERSION}.zip",
-                ]
-                for name in candidates:
-                    candidate_url = (
-                        f"https://github.com/bol-van/zapret/releases/download/"
-                        f"v{ZAPRET_VERSION}/{name}"
-                    )
-                    if callback:
-                        callback(f"Trying {name} ...")
-                    req = urllib.request.Request(candidate_url, headers={"User-Agent": "Mangopret/1.0"})
-                    try:
-                        with urllib.request.urlopen(req, timeout=30) as resp:
-                            if resp.status == 200:
-                                asset_url = candidate_url
-                                break
-                    except Exception:
-                        continue
-
-            if not asset_url:
-                if callback:
-                    callback("Error: cannot find zapret download URL (rate limited)")
-                return False
-
-            if callback:
-                callback(f"Downloading from {asset_url} ...")
-
-            archive = tmpdir / "zapret.zip"
-            urllib.request.urlretrieve(asset_url, archive)
-
-            if callback:
-                callback("Extracting ...")
-
-            with zipfile.ZipFile(archive, "r") as zf:
-                zf.extractall(tmpdir)
-
-            for d in tmpdir.iterdir():
-                if d.is_dir() and "bin" in [x.name for x in d.iterdir()]:
-                    shutil.copytree(d / "bin", self.bin_dir, dirs_exist_ok=True)
-                    break
-
-            if callback:
-                callback("Done!")
-            return True
-
-        except Exception as e:
-            if callback:
-                callback(f"Error: {e}")
-            return False
-        finally:
-            shutil.rmtree(tmpdir, ignore_errors=True)
 
     # ------------------------------------------------------------------ process
     def start_process(self, args: list) -> Optional[subprocess.Popen]:
@@ -447,6 +366,7 @@ class PlatformInfo:
         zapret_ipset = self.zapret_dir / "ipset"
         zapret_ipset.mkdir(parents=True, exist_ok=True)
 
+        # Collect ipset/hostlist paths and .bin template paths from all rules
         copied_ipset = set()
         copied_bin = set()
 
@@ -464,6 +384,7 @@ class PlatformInfo:
                     if not src.exists() or not src.is_file():
                         continue
 
+                    # .bin template files go to zapret/files/fake/
                     if src.suffix == ".bin":
                         dst_dir = self.zapret_dir / "files" / "fake"
                         dst_dir.mkdir(parents=True, exist_ok=True)
@@ -474,6 +395,7 @@ class PlatformInfo:
                             shutil.copy2(str(src), str(dst))
                         copied_bin.add(src.name)
                     else:
+                        # ipset/hostlist .txt files go to zapret/ipset/
                         dst = zapret_ipset / src.name
                         if src.name in copied_ipset:
                             continue
@@ -489,6 +411,8 @@ class PlatformInfo:
             shutil.copy2(str(official_link), str(official_service))
             print(f"[mangopret] Installed official zapret.service")
 
+        # Ensure the ExecStart script has execute permissions (shutil.copy2 may
+        # preserve non-executable perms from the tarball, causing 203/EXEC).
         self._fix_init_script_perms()
 
         try:
@@ -500,8 +424,11 @@ class PlatformInfo:
             print(f"[mangopret] daemon-reload failed: {e}")
 
     def _fix_init_script_perms(self):
+        """Ensure init scripts referenced by zapret.service are executable.
+        Also fix ipset/*.sh scripts — the tarball may not preserve +x bits."""
         import re
 
+        # Fix ExecStart/ExecStop/ExecReload scripts from the service unit
         service_file = Path("/etc/systemd/system/zapret.service")
         if service_file.exists():
             try:
@@ -516,6 +443,7 @@ class PlatformInfo:
             except Exception as e:
                 print(f"[mangopret] Warning: could not fix init script perms: {e}")
 
+        # Fix ipset/*.sh scripts (sourced by the init system but also called directly)
         ipset_dir = self.zapret_dir / "ipset"
         if ipset_dir.is_dir():
             for sh_file in ipset_dir.glob("*.sh"):
