@@ -127,7 +127,7 @@ class PlatformInfo:
 
             proc = subprocess.run(
                 ["bash", str(installer), str(src), str(self.zapret_dir)],
-                capture_output=True, text=True, timeout=600,
+                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=600,
             )
             for line in proc.stdout.splitlines():
                 if callback:
@@ -190,7 +190,7 @@ class PlatformInfo:
             if self.is_windows:
                 r = subprocess.run(
                     ["tasklist", "/FI", f"IMAGENAME eq {name}"],
-                    capture_output=True, text=True, timeout=5,
+                    capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=5,
                     creationflags=_WIN_CREATE_NO_WINDOW,
                 )
                 return name.lower() in r.stdout.lower()
@@ -222,7 +222,7 @@ class PlatformInfo:
         try:
             r = subprocess.run(
                 ["sc", "query", "zapret"],
-                capture_output=True, text=True, timeout=10,
+                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=10,
                 creationflags=_WIN_CREATE_NO_WINDOW,
             )
             if "RUNNING" in r.stdout:
@@ -240,7 +240,7 @@ class PlatformInfo:
         try:
             r = subprocess.run(
                 ["systemctl", "is-active", "zapret"],
-                capture_output=True, text=True, timeout=5,
+                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=5,
             )
             state = r.stdout.strip()
             if state == "active":
@@ -261,7 +261,7 @@ class PlatformInfo:
         try:
             r = subprocess.run(
                 ["systemctl", "is-enabled", "zapret"],
-                capture_output=True, text=True, timeout=5,
+                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=5,
             )
             return r.stdout.strip() == "enabled"
         except Exception as exc:
@@ -428,7 +428,7 @@ class PlatformInfo:
         try:
             subprocess.run(
                 ["systemctl", "daemon-reload"],
-                capture_output=True, text=True, timeout=10,
+                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=10,
             )
         except Exception as exc:
             logger.warning("daemon-reload failed: %s", exc)
@@ -474,7 +474,7 @@ class PlatformInfo:
         try:
             r = subprocess.run(
                 ["systemctl", action, "zapret"],
-                capture_output=True, text=True, timeout=10,
+                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=10,
             )
             return (r.returncode == 0, r.stderr.strip() if r.stderr else "")
         except Exception as exc:
@@ -511,7 +511,7 @@ class PlatformInfo:
         try:
             r = subprocess.run(
                 ["sc", action, "zapret"],
-                capture_output=True, text=True, timeout=10,
+                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=10,
                 creationflags=_WIN_CREATE_NO_WINDOW,
             )
             return (r.returncode == 0, r.stderr.strip() if r.stderr else "")
@@ -581,7 +581,7 @@ class PlatformInfo:
             r = subprocess.run(
                 ["sc", "create", "zapret", "binPath=", sc_cmd,
                  "DisplayName=", "zapret", "start=", "auto"],
-                capture_output=True, text=True, timeout=10,
+                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=10,
                 creationflags=_WIN_CREATE_NO_WINDOW,
             )
             return (r.returncode == 0, r.stderr.strip() if r.stderr else "")
@@ -596,7 +596,7 @@ class PlatformInfo:
         try:
             r = subprocess.run(
                 ["journalctl", "-u", "zapret", "-n", str(lines), "--no-pager"],
-                capture_output=True, text=True, timeout=10,
+                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=10,
             )
             return r.stdout
         except Exception as exc:
@@ -610,7 +610,7 @@ class PlatformInfo:
             try:
                 r = subprocess.run(
                     ["schtasks", "/query", "/tn", "Mangopret"],
-                    capture_output=True, text=True, timeout=10,
+                    capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=10,
                     creationflags=_WIN_CREATE_NO_WINDOW,
                 )
                 return r.returncode == 0
@@ -659,7 +659,7 @@ class PlatformInfo:
                  "/sc", "onlogon",
                  "/rl", "highest",
                  "/f"],
-                capture_output=True, text=True, timeout=15,
+                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=15,
                 creationflags=_WIN_CREATE_NO_WINDOW,
             )
             if r.returncode == 0:
@@ -687,7 +687,7 @@ class PlatformInfo:
         try:
             r = subprocess.run(
                 ["schtasks", "/delete", "/tn", "Mangopret", "/f"],
-                capture_output=True, text=True, timeout=10,
+                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=10,
                 creationflags=_WIN_CREATE_NO_WINDOW,
             )
             if r.returncode == 0:

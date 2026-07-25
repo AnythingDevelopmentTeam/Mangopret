@@ -8,8 +8,10 @@
 .vscode/
 .idea/
 /build/
-__pycache__/
+/release/
+/__pycache__/
 /python/
+.release/
 
 # Personal/scratch files
 mango.sj

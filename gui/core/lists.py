@@ -173,7 +173,7 @@ class ListManager:
             try:
                 r = subprocess.run(
                     ["sc", "query", "BFE"],
-                    capture_output=True, text=True, timeout=10,
+                    capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=10,
                     creationflags=_WIN_CREATE_NO_WINDOW,
                 )
                 if "RUNNING" in r.stdout:
@@ -203,7 +203,7 @@ class ListManager:
             try:
                 r = subprocess.run(
                     ["tasklist", "/FI", "IMAGENAME eq AdguardSvc.exe"],
-                    capture_output=True, text=True, timeout=5,
+                    capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=5,
                     creationflags=_WIN_CREATE_NO_WINDOW,
                 )
                 if "AdguardSvc.exe" in r.stdout:
@@ -228,7 +228,7 @@ class ListManager:
                 logger.debug("Firewall check failed: %s", exc)
 
             try:
-                r = subprocess.run(["id"], capture_output=True, text=True, timeout=5)
+                r = subprocess.run(["id"], capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=5)
                 if "uid=0" in r.stdout:
                     results.append("[OK] Running as root")
                 else:
