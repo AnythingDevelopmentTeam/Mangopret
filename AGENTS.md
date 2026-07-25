@@ -1,6 +1,6 @@
 # Mangopret — AI Agent Guide
 
-Cross-platform (Linux + Windows) GUI/CLI manager for [zapret](https://github.com/bol-van/zapret), a DPI (Deep Packet Inspection) bypass tool. PyQt6 GUI, systemd service management, strategy selection, IP/domain list editing, automated zapret installation.
+This is the **unified branch** (merged main + mangopretwin). Cross-platform (Linux + Windows) GUI/CLI manager for [zapret](https://github.com/bol-van/zapret), a DPI (Deep Packet Inspection) bypass tool. PyQt6 GUI, systemd service management, strategy selection, IP/domain list editing, automated zapret installation.
 
 ## Quick Start
 
@@ -92,7 +92,7 @@ Mutual exclusion: starting a strategy from GUI kills the service first; starting
 | `gui/ui/tabs/service_tab.py` | ServiceTab: zapret install (DownloadThread), systemd service CRUD, iptables apply/remove, updates, diagnostics |
 | `gui/ui/tabs/lists_tab.py` | ListsTab: split-pane file editor for list-*.txt and ipset-*.txt |
 | `gui/ui/tabs/log_tab.py` | LogTab: timestamped log viewer with copy |
-| `gui/strategies/*.strategy` | 21 strategy JSON files (EXP, ALT, ALT2... ALT12, SIMPLE FAKE, FAKE TLS AUTO...) |
+| `gui/strategies/*.strategy` | 27 strategy JSON files (EXP, ALT..ALT12, SIMPLE FAKE, FAKE TLS AUTO, FAKE SPLIT, FAKE+DISORDER, MULTISPLIT, game DISCORD/STEAM/GENERAL) |
 | `lists/` | Domain lists (list-general.txt, list-google.txt, etc.) and IP sets (ipset-all.txt, ipset-exclude.txt) |
 | `bin/` | Pre-built binaries: nfqws, winws.exe, WinDivert, .bin fake packet templates |
 | `silent_install.sh` | Root installer: copies zapret tree to /opt/zapret, runs install_bin.sh + install_prereq.sh |
