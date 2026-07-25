@@ -3,8 +3,7 @@
 > **Независимый форк** (ранее — ответвление от zapret-discord-youtube).  
 > Полностью переработан: собственный GUI, CLI, система стратегий, менеджер списков.
 
-Проект основан на [zapret-discord-youtube](https://github.com/Flowseal/zapret-discord-youtube) от [Flowseal](https://github.com/Flowseal).  
-Использует [zapret](https://github.com/bol-van/zapret) — DPI-обходчик от [bol-van](https://github.com/bol-van).
+Проект основан на [zapret-discord-youtube](https://github.com/Flowseal/zapret-discord-youtube) от [Flowseal](https://github.com/Flowseal).
 
 > [!CAUTION]
 > ### Фейки
@@ -181,4 +180,4 @@ MIT — [LICENSE.txt](./LICENSE.txt)
 
 [![Contributors](https://contrib.rocks/image?repo=AnythingDevelopmentTeam/mangopret)](https://github.com/AnythingDevelopmentTeam/mangopret/graphs/contributors)
 
-💖 Благодарность [Flowseal](https://github.com/Flowseal) — автору zapret-discord-youtube, и [bol-van](https://github.com/bol-van) — разработчику [zapret](https://github.com/bol-van/zapret)
+💖 Благодарность [Flowseal](https://github.com/Flowseal) — автору zapret-discord-youtube
