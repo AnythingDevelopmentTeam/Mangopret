@@ -45,11 +45,22 @@ install_pyqt6() {
         sudo apk add py3-pyqt6 2>/dev/null && return 0
     fi
 
+    # System packages failed — try pip
     if command -v pip3 &>/dev/null; then
         pip3 install --user PyQt6 2>/dev/null && return 0
     fi
     if command -v pip &>/dev/null; then
         pip install --user PyQt6 2>/dev/null && return 0
+    fi
+
+    # pip itself missing — bootstrap from bundled get-pip.py
+    local GET_PIP="$SCRIPT_DIR/pip/get-pip.py"
+    if [ -f "$GET_PIP" ]; then
+        echo "Bootstrapping pip from bundled get-pip.py..."
+        "$PYTHON" "$GET_PIP" --no-warn-script-location 2>/dev/null
+        if "$PYTHON" -m pip --version &>/dev/null; then
+            "$PYTHON" -m pip install --user PyQt6 2>/dev/null && return 0
+        fi
     fi
 
     return 1

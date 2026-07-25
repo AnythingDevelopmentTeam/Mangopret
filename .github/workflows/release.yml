@@ -70,6 +70,7 @@ jobs:
           cp -r lists "$NAME/"
           cp -r bin "$NAME/"
           cp -r .service "$NAME/"
+          cp -r pip "$NAME/"
 
           # Portable Python (Windows)
           cp -r python "$NAME/"

@@ -39,7 +39,9 @@ def get_config():
 
 def cmd_install(args):
     p = get_platform()
-    config = get_config()
+    if p.is_windows:
+        print("Zapret is already bundled with Mangopret on Windows.")
+        return
 
     print("Installing zapret to /opt/zapret ...")
     ok = p.install_zapret(callback=lambda m: print(f"  {m}"))
@@ -195,6 +197,10 @@ def cmd_strategies(args):
 
 def cmd_update(args):
     p = get_platform()
+    if p.is_windows:
+        print("Zapret is already bundled with Mangopret on Windows.")
+        return
+
     if not p.is_zapret_installed():
         print("Zapret is not installed. Run: ./run.sh install")
         sys.exit(1)

@@ -2,10 +2,8 @@ import os
 import sys
 import subprocess
 import shutil
-import zipfile
 import tarfile
 import urllib.request
-import json
 import tempfile
 from pathlib import Path
 from typing import Optional, Tuple, List
@@ -68,6 +66,8 @@ class PlatformInfo:
         return self.binary.exists()
 
     def is_zapret_installed(self) -> bool:
+        if self.is_windows:
+            return True
         return (self.zapret_dir / "install_easy.sh").exists() or (
             self.zapret_dir / "config"
         ).exists()
@@ -80,7 +80,9 @@ class PlatformInfo:
     # ------------------------------------------------------------------ install
     def install_zapret(self, callback=None) -> bool:
         if self.is_windows:
-            return self._install_zapret_windows(callback)
+            if callback:
+                callback("Zapret is already bundled — nothing to install.")
+            return True
         return self._install_zapret_linux(callback)
 
     def _install_zapret_linux(self, callback=None) -> bool:
@@ -145,57 +147,6 @@ class PlatformInfo:
             if callback:
                 callback(f"Error: {e}")
             return False
-
-    def _install_zapret_windows(self, callback=None) -> bool:
-        tmpdir = Path(tempfile.mkdtemp(prefix="mangopret_"))
-        try:
-            if callback:
-                callback("Downloading zapret-win-bundle ...")
-
-            releases_url = "https://api.github.com/repos/bol-van/zapret/releases/latest"
-            req = urllib.request.Request(releases_url, headers={"User-Agent": "Mangopret"})
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                data = json.loads(resp.read().decode())
-
-            asset_url = None
-            for asset in data.get("assets", []):
-                name = asset["name"].lower()
-                if name.endswith(".zip") and ("win" in name or "bundle" in name):
-                    asset_url = asset["browser_download_url"]
-                    break
-
-            if not asset_url:
-                if callback:
-                    callback("No suitable Windows release asset found")
-                return False
-
-            if callback:
-                callback(f"Downloading {asset_url} ...")
-
-            archive = tmpdir / "zapret.zip"
-            urllib.request.urlretrieve(asset_url, archive)
-
-            if callback:
-                callback("Extracting ...")
-
-            with zipfile.ZipFile(archive, "r") as zf:
-                zf.extractall(tmpdir)
-
-            for d in tmpdir.iterdir():
-                if d.is_dir() and "bin" in [x.name for x in d.iterdir()]:
-                    shutil.copytree(d / "bin", self.bin_dir, dirs_exist_ok=True)
-                    break
-
-            if callback:
-                callback("Done!")
-            return True
-
-        except Exception as e:
-            if callback:
-                callback(f"Error: {e}")
-            return False
-        finally:
-            shutil.rmtree(tmpdir, ignore_errors=True)
 
     # ------------------------------------------------------------------ process
     def start_process(self, args: list) -> Optional[subprocess.Popen]:

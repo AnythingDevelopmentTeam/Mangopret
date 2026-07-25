@@ -101,6 +101,8 @@ class MainWindow(QMainWindow):
         return False
 
     def _ensure_zapret(self):
+        if self.platform.is_windows:
+            return
         if self.platform.is_zapret_installed():
             return
         reply = QMessageBox.question(

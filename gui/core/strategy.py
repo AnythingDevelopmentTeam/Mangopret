@@ -33,6 +33,12 @@ DESCRIPTIONS = {
     "general_fake_tls_auto_alt2": ("General (FAKE TLS AUTO ALT2)", "Fake,multisplit with badseq, badseq-increment=10000000."),
     "general_fake_tls_auto_alt3": ("General (FAKE TLS AUTO ALT3)", "Fake,multisplit with badseq, badseq-increment=1000."),
     "general_exp": ("General (EXP)", "Experimental. Uses quic filter-l7 and hostfakesplit for Google."),
+    "general_multisplit": ("General (MULTISPLIT)", "Pure multisplit with seqovl. Multiple split positions for maximum DPI evasion."),
+    "general_fake+disorder": ("General (FAKE+DISORDER)", "fake,multidisorder with badseq fooling. Aggressive split+reorder approach."),
+    "general_fake_split": ("General (FAKE SPLIT)", "fake,fakedsplit with ts fooling. Combines fake packets with split at SNI boundary."),
+    "game_discord": ("Game (DISCORD)", "Optimized for Discord voice/video. Aggressive QUIC fake + low-latency UDP handling."),
+    "game_steam": ("Game (STEAM)", "Optimized for Steam. Game downloads, voice chat, and store access."),
+    "game_general": ("Game (GENERAL)", "General gaming optimization. Low latency UDP, wide port range, aggressive fake."),
 }
 
 
@@ -61,7 +67,7 @@ class Strategy:
     name: str = ""
     description: str = ""
     version: str = "1.0"
-    author: str = "Mangopret"
+    author: str = "vesno4null"
     wf_tcp: str = "80,443,2053,2083,2087,2096,8443"
     wf_udp: str = "443,19294-19344,50000-50100"
     rules: list = field(default_factory=list)

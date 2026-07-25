@@ -3,7 +3,7 @@
   "name": "General (ALT4)",
   "description": "Fake,multisplit with badseq fooling, badseq-increment=1000.",
   "version": "1.0",
-  "author": "Mangopret",
+  "author": "vesno4null",
   "wf_tcp": "80,443,2053,2083,2087,2096,8443",
   "wf_udp": "443,19294-19344,50000-50100",
   "rules": [

@@ -1,7 +1,7 @@
 {
-  "id": "general (ALT11)",
-  "name": "General (ALT11)",
-  "description": "Fake,multisplit with ts fooling, repeats=8. QUIC fake repeats=11.",
+  "id": "general (FAKE SPLIT)",
+  "name": "General (FAKE SPLIT)",
+  "description": "fake,fakedsplit with ts fooling. Combines fake packets with split at SNI boundary.",
   "version": "1.0",
   "author": "vesno4null",
   "wf_tcp": "80,443,2053,2083,2087,2096,8443",
@@ -23,7 +23,7 @@
         "{lists}/ipset-exclude-user.txt"
       ],
       "dpi-desync": "fake",
-      "dpi-desync-repeats": "11",
+      "dpi-desync-repeats": "8",
       "dpi-desync-fake-quic": "{bin}/quic_initial_www_google_com.bin"
     },
     {
@@ -39,12 +39,9 @@
       "name": "TCP 2053,2083,2087,2096,8443",
       "filter-tcp": "2053,2083,2087,2096,8443",
       "hostlist-domains": "discord.media",
-      "dpi-desync": "fake,multisplit",
-      "dpi-desync-split-seqovl": "681",
-      "dpi-desync-split-pos": "1",
+      "dpi-desync": "fake,fakedsplit",
+      "dpi-desync-repeats": "6",
       "dpi-desync-fooling": "ts",
-      "dpi-desync-repeats": "8",
-      "dpi-desync-split-seqovl-pattern": "{bin}/tls_clienthello_www_google_com.bin",
       "dpi-desync-fake-tls": "{bin}/tls_clienthello_www_google_com.bin"
     },
     {
@@ -52,12 +49,9 @@
       "filter-tcp": "443",
       "hostlist": "{lists}/list-google.txt",
       "ip-id": "zero",
-      "dpi-desync": "fake,multisplit",
-      "dpi-desync-split-seqovl": "681",
-      "dpi-desync-split-pos": "1",
+      "dpi-desync": "fake,fakedsplit",
+      "dpi-desync-repeats": "6",
       "dpi-desync-fooling": "ts",
-      "dpi-desync-repeats": "8",
-      "dpi-desync-split-seqovl-pattern": "{bin}/tls_clienthello_www_google_com.bin",
       "dpi-desync-fake-tls": "{bin}/tls_clienthello_www_google_com.bin"
     },
     {
@@ -75,15 +69,12 @@
         "{lists}/ipset-exclude.txt",
         "{lists}/ipset-exclude-user.txt"
       ],
-      "dpi-desync": "fake,multisplit",
-      "dpi-desync-split-seqovl": "664",
-      "dpi-desync-split-pos": "1",
-      "dpi-desync-fooling": "ts",
+      "dpi-desync": "fake,fakedsplit",
       "dpi-desync-repeats": "8",
-      "dpi-desync-split-seqovl-pattern": "{bin}/tls_clienthello_max_ru.bin",
+      "dpi-desync-fooling": "ts",
       "dpi-desync-fake-tls": [
         "{bin}/stun.bin",
-        "{bin}/tls_clienthello_max_ru.bin"
+        "{bin}/tls_clienthello_www_google_com.bin"
       ],
       "dpi-desync-fake-http": "{bin}/tls_clienthello_max_ru.bin"
     },
@@ -100,7 +91,7 @@
         "{lists}/ipset-exclude-user.txt"
       ],
       "dpi-desync": "fake",
-      "dpi-desync-repeats": "11",
+      "dpi-desync-repeats": "8",
       "dpi-desync-fake-quic": "{bin}/quic_initial_www_google_com.bin"
     },
     {
@@ -115,15 +106,12 @@
         "{lists}/ipset-exclude.txt",
         "{lists}/ipset-exclude-user.txt"
       ],
-      "dpi-desync": "fake,multisplit",
-      "dpi-desync-split-seqovl": "664",
-      "dpi-desync-split-pos": "1",
-      "dpi-desync-fooling": "ts",
+      "dpi-desync": "fake,fakedsplit",
       "dpi-desync-repeats": "8",
-      "dpi-desync-split-seqovl-pattern": "{bin}/tls_clienthello_max_ru.bin",
+      "dpi-desync-fooling": "ts",
       "dpi-desync-fake-tls": [
         "{bin}/stun.bin",
-        "{bin}/tls_clienthello_max_ru.bin"
+        "{bin}/tls_clienthello_www_google_com.bin"
       ],
       "dpi-desync-fake-http": "{bin}/tls_clienthello_max_ru.bin"
     }
