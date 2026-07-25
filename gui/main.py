@@ -30,7 +30,7 @@ BANNER = r"""
                       __/ |
                      |___/                           v%s
 
-""" % "2.1.0"
+""" % "2.2.0"
 
 
 def get_platform() -> PlatformInfo:
