@@ -67,13 +67,19 @@ if %errorlevel% equ 0 (
 )
 
 echo Installing PyQt6...
-"%PYTHON%" -m pip install PyQt6 --no-warn-script-location
+"%PYTHON%" -m pip install "PyQt6>=6.5" --no-warn-script-location
 if %errorlevel% neq 0 (
     echo Failed to install PyQt6.
     pause
     exit /b 1
 )
 echo PyQt6 installed successfully.
+
+:: Install dev extras if requirements-dev.txt exists
+if exist "%SCRIPT_DIR%..\requirements-dev.txt" (
+    echo Installing development dependencies...
+    "%PYTHON%" -m pip install -r "%SCRIPT_DIR%..\requirements-dev.txt" --no-warn-script-location 2>nul
+)
 
 :done
 echo.

@@ -3,6 +3,10 @@ import sys
 import os
 import argparse
 import subprocess
+try:
+    import argcomplete
+except ImportError:
+    argcomplete = None
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BASE_DIR = os.path.dirname(SCRIPT_DIR)
@@ -26,7 +30,7 @@ BANNER = r"""
                       __/ |
                      |___/                           v%s
 
-""" % "2.0"
+""" % "2.1.0"
 
 
 def get_platform() -> PlatformInfo:
@@ -267,7 +271,10 @@ def cmd_lists(args: argparse.Namespace) -> None:
     lm = ListManager(str(p.lists_dir), str(p.utils_dir))
 
     action = args.action
-    if action == "update-ipset":
+    if action == "update-strategies":
+        ok = lm.update_strategies(str(p.strategies_dir), callback=lambda m: print(f"  {m}"))
+        print("Strategies updated." if ok else "Failed to update strategies.")
+    elif action == "update-ipset":
         ok = lm.update_ipset(callback=lambda m: print(f"  {m}"))
         print("IPSet updated." if ok else "Failed to update IPSet.")
     elif action == "update-hosts":
@@ -350,6 +357,19 @@ def cmd_convert(args: argparse.Namespace) -> None:
     print(f"Output: {output_dir}")
 
 
+def cmd_completion(args: argparse.Namespace) -> None:
+    shell = args.shell
+    try:
+        import argcomplete
+        # Register for both run.sh and python3 -m gui.main
+        code = argcomplete.shellcode([shell], "run.sh", argcomplete.argparse_wrapper("python3 -m gui.main"))
+        print(code)
+        print(f"# Run: eval \"$({code})\"", file=sys.stderr)
+    except ImportError:
+        print("argcomplete not installed. Run: pip install mangopret[completion]", file=sys.stderr)
+        sys.exit(1)
+
+
 def cmd_autostart(args: argparse.Namespace) -> None:
     p = get_platform()
     action = args.action
@@ -424,12 +444,23 @@ def main() -> None:
 
     p_lists = sub.add_parser("lists", help="Manage domain/IP lists")
     p_lists.add_argument("action", nargs="?", default="list",
-                         choices=["list", "update-ipset", "update-hosts", "edit"])
+                         choices=["list", "update-strategies", "update-ipset", "update-hosts", "edit"])
     p_lists.add_argument("file", nargs="?", default=None)
 
     p_autostart = sub.add_parser("autostart", help="Manage login autostart")
     p_autostart.add_argument("action", choices=["enable", "disable", "status"])
 
+    try:
+        import argcomplete
+    except ImportError:
+        pass
+    else:
+        p_completion = sub.add_parser("completion", help="Generate shell completion script")
+        p_completion.add_argument("shell", choices=["bash", "zsh", "fish"],
+                                  help="Target shell")
+
+    if argcomplete:
+        argcomplete.autocomplete(parser)
     args = parser.parse_args()
 
     if not args.command:
@@ -451,6 +482,7 @@ def main() -> None:
         "diagnostics": cmd_diagnostics,
         "convert": cmd_convert,
         "autostart": cmd_autostart,
+        "completion": cmd_completion,
     }
 
     func = commands.get(args.command)

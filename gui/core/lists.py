@@ -132,6 +132,40 @@ class ListManager:
             logger.warning(msg)
             return False
 
+    def update_strategies(self, strategies_dir: str, branch: str = "main", callback: Callable[[str], None] | None = None) -> bool:
+        url = f"https://api.github.com/repos/AnythingDevelopmentTeam/Mangopret/contents/gui/strategies?ref={branch}"
+        dest = Path(strategies_dir)
+        try:
+            import urllib.request
+            import json
+
+            if callback:
+                callback("Fetching strategy list...")
+            req = urllib.request.Request(url, headers={"Accept": "application/vnd.github.v3+json"})
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                files = json.loads(resp.read().decode())
+
+            dest.mkdir(parents=True, exist_ok=True)
+            updated = 0
+            for item in files:
+                if item["name"].endswith(".strategy"):
+                    if callback:
+                        callback(f"Downloading {item['name']}...")
+                    file_url = item["download_url"]
+                    local = dest / item["name"]
+                    urllib.request.urlretrieve(file_url, local)
+                    updated += 1
+
+            if callback:
+                callback(f"Updated {updated} strategies from branch '{branch}'")
+            return True
+        except Exception as exc:
+            msg = f"Failed to update strategies: {exc}"
+            if callback:
+                callback(msg)
+            logger.warning(msg)
+            return False
+
     def run_diagnostics(self, is_windows: bool = True) -> str:
         results: list[str] = []
 

@@ -17,7 +17,7 @@ from core.platform import PlatformInfo
 from core.config import Config
 from core.lists import ListManager
 from ui.main_window import MainWindow
-from ui.theme import DARK_THEME
+from ui.theme import THEMES
 from core.log import get_logger
 
 logger = get_logger(__name__)
@@ -145,8 +145,8 @@ def main() -> None:
     config = Config(str(platform.config_dir))
 
     theme = config.get("theme", "system")
-    if theme == "dark":
-        app.setStyleSheet(DARK_THEME)
+    if theme in THEMES:
+        app.setStyleSheet(THEMES[theme])
     else:
         _apply_theme(app, platform)
     list_manager = ListManager(str(platform.lists_dir), str(platform.utils_dir))

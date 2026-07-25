@@ -148,12 +148,29 @@ Only use OUTPUT chain for iptables rules. FORWARD is for routed traffic and dang
 
 ## Running Tests
 
-No formal test suite. Verify manually:
-1. `python3 -m py_compile gui/core/platform.py` (and each changed file)
-2. Launch GUI: `./run_gui.sh` — verify strategy list loads, tabs render
-3. Start/stop a strategy — verify iptables rules appear/disappear (`iptables -t mangle -L OUTPUT --line-numbers -n`)
-4. `./run.sh status` — verify output
-5. Service lifecycle: `./run.sh service install` → `./run.sh service start` → `./run.sh service stop` → `./run.sh service remove`
+```bash
+pip install -e ".[dev]"
+pip install PyQt6      # required for import tests
+pytest tests/ -v       # 28 unit tests
+ruff check             # linting
+ruff format --check    # formatting
+pre-commit run --all   # pre-commit hooks
+```
+
+Manual verification:
+1. Launch GUI: `./run_gui.sh` — verify strategy list loads, tabs render
+2. Start/stop a strategy — verify iptables rules appear/disappear (`iptables -t mangle -L OUTPUT --line-numbers -n`)
+3. `./run.sh status` — verify output
+4. Service lifecycle: `./run.sh service install` → `./run.sh service start` → `./run.sh service stop` → `./run.sh service remove`
+
+## CLI Completion
+
+```bash
+pip install mangopret[completion]
+./run.sh completion bash > /etc/bash_completion.d/mangopret
+# or for zsh:
+./run.sh completion zsh > /usr/share/zsh/vendor-completions/_mangopret
+```
 
 ## Build & Release
 
@@ -167,4 +184,4 @@ Produces `.zip` and `.tar.gz` archives with SHA256 checksums.
 
 - **Linux**: Python 3, PyQt6 (auto-installed by run_gui.sh), iptables, root access
 - **Windows**: Python 3 (bundled or system), PyQt6, WinDivert (included in bin/)
-- **No pip requirements.txt** — PyQt6 is the only Python dependency, installed by the launcher scripts
+- See `pyproject.toml` for dependency declarations, `requirements.txt` for pinned versions
