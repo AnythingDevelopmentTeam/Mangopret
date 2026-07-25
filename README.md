@@ -57,31 +57,12 @@
 
 ### Не работает игра/приложение с включённым запретом
 
-- Проверьте, что Game Filter` **`disabled`**, а `IPSet Filter` **`none`**. Иначе это может затронуть доступность ресурсов, которых вы не ожидали.
+- Проверьте, что Game Filter` `disabled`, а `IPSet Filter` `none`. Иначе это может затронуть доступность ресурсов, которых вы не ожидали.
 
 ### Античит ругается на WinDivert
 
 - Прочитайте инструкцию тут - https://github.com/bol-van/zapret-win-bundle/tree/master/windivert-hide (можно получить бан)
 
-### Требуется цифровая подпись драйвера WinDivert (Windows 7)
-
-- Замените файлы `WinDivert.dll` и `WinDivert64.sys` в папке [`bin`](./bin) на одноименные из [zapret-win-bundle/win7](https://github.com/bol-van/zapret-win-bundle/tree/master/win7)
-
-### При удалении с помощью [**`service.bat`**](./service.bat), WinDivert остается в службах
-
-1. Узнайте название службы с помощью команды, в командной строке Windows (Win+R, `cmd`):
-
-```cmd
-driverquery | find "Divert"
-```
-
-2. Остановите и удалите службу командами:
-
-```cmd
-sc stop название_из_первого_шага
-
-sc delete название_из_первого_шага
-```
 
 ### Не работает <img src="https://cdn-icons-png.flaticon.com/128/1384/1384060.png" height=18 /> YouTube
 
