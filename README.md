@@ -3,99 +3,181 @@
 > **Независимый форк** (ранее — ответвление от zapret-discord-youtube).  
 > Полностью переработан: собственный GUI, CLI, система стратегий, менеджер списков.
 
-Поддержите оригинального разработчика zapret [тут](https://github.com/bol-van/zapret?tab=readme-ov-file#%D0%BF%D0%BE%D0%B4%D0%B4%D0%B5%D1%80%D0%B6%D0%B0%D1%82%D1%8C-%D1%80%D0%B0%D0%B7%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%87%D0%B8%D0%BA%D0%B0)
-</div>
+Поддержите оригинального разработчика zapret: [bol-van/zapret](https://github.com/bol-van/zapret)
 
 > [!CAUTION]
->
-> ### ФЕЙКИ
-> Мы не распространяем нашу сборку zapret на каких-либо других сайтах или репозиториях. У нас нет зеркала на каком-нибудь "zapretfreenovirus.com".
+> ### Фейки
+> Мы не распространяем сборку на других сайтах или репозиториях. У нас нет зеркала на «zapretfreenovirus.com».
 
-## ⚙️Использование
+---
 
-1. Скачайте архив (zip/tar.gz) со [страницы последнего релиза](https://github.com/AnythingDevelopmentTeam/mangopret/releases/latest)
+## Возможности
 
-2. Распакуйте содержимое архива по пути, который не содержит кириллицу/спец. символы
+| | |
+|---|---|
+| 🖥️ **GUI** | PyQt6 интерфейс с тёмной, светлой и контрастной темами |
+| ⌨️ **CLI** | Полноценное управление через терминал |
+| 🧠 **27+ стратегий** | EXP, ALT1–12, FAKE, SPLIT, DISORDER, MULTISPLIT, игровые |
+| 🔧 **Мастер стратегий** | Конвертация `.bat` → `.strategy`, автообновление из репозитория |
+| 📋 **Редактор списков** | Домены (`list-*.txt`) и IP (`ipset-*.txt`) с split-pane |
+| 🔄 **Автообновление** | IPSet, hosts, стратегии — одной командой |
+| ⚙️ **Systemd сервис** | Установка, запуск, стоп, автостарт, логи |
+| 🧹 **iptables** | NFQUEUE правила, очистка при падении, emergency fix |
+| 🪟 **Windows** | Полноценная поддержка WinDivert + WinDivert hide |
+| 🔔 **Tray** | Системный трей с быстрыми действиями |
+| 🎯 **CLI автодополнение** | Bash/Zsh/Fish (через argcomplete) |
+| 📊 **Диагностика** | Проверка конфликтов (BFE, Adguard, прокси) |
 
-3. Запустите run_gui.sh/bat для интерфейса или run.sh/bat для CLI
+---
 
-> [!IMPORTANT]
-> **Стратегии со временем могут переставать работать.**
-> Определенная стратегия может работать какое-то время, но со временем она может переставать работать из-за обнаружения.
-> В репозитории представлены множество различных стратегий для обхода. Если ни одна из них вам не помогает, то вам необходимо создать новую, взяв за основу одну из представленных здесь и изменив её параметры.
-> Информацию про параметры стратегий вы можете найти [тут](https://github.com/bol-van/zapret/blob/master/docs/readme.md#nfqws).
+## Быстрый старт
 
-- Убедитесь, что адрес ресурса записан в списках доменов или IP
+### Linux
 
-- Проверьте другие стратегии (**`ALT`**/**`FAKE`** и другие)
+```bash
+# GUI (автоустановка зависимостей, повышение прав)
+./run_gui.sh
 
-- Попробуйте полную переустановку
+# CLI
+sudo ./run.sh start "general (EXP)"
+sudo ./run.sh stop
+sudo ./run.sh fix               # аварийная очистка iptables
+sudo ./run.sh status
+sudo ./run.sh strategies
+sudo ./run.sh service install
+sudo ./run.sh service start
+```
 
-- Попробуете воспользоваться blockcheck 
+### Windows
 
+```cmd
+run_gui.bat          # GUI
+run.bat start "general (EXP)"
+run.bat stop
+```
 
-### Не работает игра/приложение с включённым запретом
+---
 
-- Проверьте, что Game Filter` `disabled`, а `IPSet Filter` `none`. Иначе это может затронуть доступность ресурсов, которых вы не ожидали.
+## CLI команды
+
+| Команда | Описание |
+|---|---|
+| `start <стратегия>` | Запустить обход |
+| `stop` | Остановить |
+| `fix` | Аварийно убить nfqws + очистить iptables |
+| `status` | Состояние (процесс, сервис, IPSet) |
+| `strategies` | Список доступных стратегий |
+| `install` | Установить zapret в `/opt/zapret` (Linux) |
+| `update` | Обновить zapret до последней версии |
+| `service install\|start\|stop\|remove\|log` | Управление systemd сервисом |
+| `lists list\|edit\|update-ipset\|update-hosts\|update-strategies` | Управление списками |
+| `autostart enable\|disable\|status` | Автозапуск при входе в систему |
+| `diagnostics` | Диагностика конфликтов |
+| `convert <input> -o <dir>` | Конвертация `.bat` → `.strategy` |
+| `completion bash\|zsh\|fish` | Сгенерировать скрипт автодополнения |
+
+---
+
+## Стратегии
+
+Файлы в `gui/strategies/*.strategy` — JSON с правилами для nfqws/winws.
+Если ни одна стратегия не работает, возьмите за основу ближайшую и измените параметры.  
+Документация по параметрам: [nfqws](https://github.com/bol-van/zapret/blob/master/docs/readme.md#nfqws)
+
+### Если не работает
+
+1. Убедитесь, что адрес ресурса есть в списках доменов или IP
+2. Проверьте другие стратегии — **ALT**, **FAKE** и т.д.
+3. Попробуйте полную переустановку
+4. Запустите `blockcheck`
+
+---
+
+## Темы
+
+Переключение в настройках GUI или через `config.json` (`theme: dark | light | contrast`).
+
+---
+
+## CLI автодополнение
+
+```bash
+pip install mangopret[completion]
+./run.sh completion bash > /etc/bash_completion.d/mangopret
+./run.sh completion zsh  > /usr/share/zsh/vendor-completions/_mangopret
+./run.sh completion fish > ~/.config/fish/completions/mangopret.fish
+```
+
+---
+
+## Troubleshooting
+
+### Не работает YouTube
+
+- Настройте Secure DNS
+- Отключите блокировщик рекламы
+- Пробуйте все стратегии
+
+### Не работает Discord
+
+- Настройте Secure DNS
+- Сначала добейтесь работы YouTube на какой-нибудь стратегии
+- `service.bat` → `Run Diagnostics` → очистка кэша Discord
+- Попробуйте в браузере: https://discord.com/app
+
+### Не работает Telegram
+
+- Используйте [tg-ws-proxy](https://github.com/Flowseal/tg-ws-proxy)
+- Или бесплатные MTProto прокси
 
 ### Античит ругается на WinDivert
 
-- Прочитайте инструкцию тут - https://github.com/bol-van/zapret-win-bundle/tree/master/windivert-hide (можно получить бан)
-
-
-### Не работает <img src="https://cdn-icons-png.flaticon.com/128/1384/1384060.png" height=18 /> YouTube
-
-- Убедитесь что вы настроили Secure DNS.
-- Отключите блокировщик рекламы, известно что YouTube начал с ними бороться.
-- Пробуйте все другие стратегии (если раньше работало, но перестало).
-
-### Не работает <img src="https://cdn-icons-png.flaticon.com/128/5968/5968756.png" height=18 /> Discord
-
-- Убедитесь что вы настроили Secure DNS.
-- Желательно сначала узнать, на какой стратегии открывается сайт YouTube. Запустите эту стратегию.
-- Запустите `service.bat` -> `Run Diagnostics` и выполните там очистку кэша Discord.
-- Проверьте приложение Discord. Помогла ли очистка кэша?
-- Проверьте Discord в браузере: https://discord.com/app. В браузере работает? Если работает, то можете пользоваться в нём.
-- Если Discord и в браузере не работает, то пробуйте ещё раз все стратегии. Бывает такое, что на одной стратегии YouTube работает, а Discord нет.
-
-### Не работает <img src="https://cdn-icons-png.flaticon.com/128/5968/5968804.png" height=18 /> Telegram
-
-- Используйте программу [tg-ws-proxy](https://github.com/Flowseal/tg-ws-proxy)
-- Или используйте бесплатные MTProto прокси из интернета
+Инструкция: [zapret-win-bundle/windivert-hide](https://github.com/bol-van/zapret-win-bundle/tree/master/windivert-hide)
 
 ### Не работают игры
 
-Есть много разных игр. Исследовать и чинить каждую из них нет возможности.
+- Game Filter → `disabled`, IPSet Filter → `none`
+- Не используйте `ipset any` на постоянной основе
+- Добавьте IP адреса игры в `ipset-all.txt`
+- Не помогло? Создайте [обсуждение](https://github.com/AnythingDevelopmentTeam/Mangopret/discussions)
 
-Но помните, что при включении `ipset any` появятся проблемы с открытием многих сайтов. Чтобы этого избежать, не используйте `ipset any` на постоянной основе. Вместо этого нужно выяснить все IP адреса, которые используются игрой, и добавить их в `ipset-all.txt`
+---
 
-Если и это не помогло, создайте ветку обсуждений в разделе [Discussions](https://github.com/AnythingDevelopmentTeam/Mangopret/discussions) (не в issues) и ждите помощи от других игроков.
+## Редактирование списков
 
-### Не нашли своей проблемы
+| Файл | Назначение |
+|---|---|
+| `list-general-user.txt` | Домены для обхода (поддомены автоматически) |
+| `list-exclude-user.txt` | Исключения доменов |
+| `ipset-all.txt` | IP и подсети |
+| `ipset-exclude-user.txt` | Исключения IP |
 
-- Создайте её [тут](https://github.com/AnythingDevelopmentTeam/Mangopret/issues)
+Файлы `*-user.txt` создаются автоматически при первом запуске.
 
-## 🗒️Добавление адресов прочих ресурсов
+---
 
-Список адресов для обхода можно расширить, добавляя их в:
-- **`list-general-user.txt`** для доменов (поддомены автоматически учитываются)
-- **`list-exclude-user.txt`** для исключения доменов (например, если айпи сети указан в `ipset-all.txt`, но конкретный домен из этой сети не надо фильтровать)
-- **`ipset-all.txt`** для IP и подсетей
-- **`ipset-exclude-user.txt`** для исключения IP и подсетей
-  - Файлы **`*-user.txt`** автоматически создадутся при первом запуске `zapret` или `service.bat`
+## Разработка
 
-## ⭐Поддержка проекта
+```bash
+pip install -e ".[dev]"
+pytest tests/ -v
+ruff check
+ruff format --check
+pre-commit run --all
+```
 
-Вы можете поддержать проект, поставив :star: этому репозиторию (сверху справа этой страницы)
+Полная архитектура описана в [AGENTS.md](./AGENTS.md).
 
-Также вы можете материально поддержать оригинального разработчика zapret [тут](https://github.com/bol-van/zapret?tab=readme-ov-file#%D0%BF%D0%BE%D0%B4%D0%B4%D0%B5%D1%80%D0%B6%D0%B0%D1%82%D1%8C-%D1%80%D0%B0%D0%B7%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%87%D0%B8%D0%BA%D0%B0)
+---
 
-## ⚖️Лицензирование
+## Лицензия
 
-Проект распространяется на условиях лицензии [MIT](https://github.com/AnythingDevelopmentTeam/Mangopret/blob/main/LICENSE.txt)
+MIT — [LICENSE.txt](./LICENSE.txt)
 
-## 🩷Благодарность участникам проекта
+---
+
+## Благодарности
 
 [![Contributors](https://contrib.rocks/image?repo=AnythingDevelopmentTeam/mangopret)](https://github.com/AnythingDevelopmentTeam/mangopret/graphs/contributors)
 
-💖 Отдельная благодарность разработчику [zapret](https://github.com/bol-van/zapret) - [bol-van](https://github.com/bol-van)
+💖 Отдельная благодарность [bol-van](https://github.com/bol-van) — разработчику [zapret](https://github.com/bol-van/zapret)
