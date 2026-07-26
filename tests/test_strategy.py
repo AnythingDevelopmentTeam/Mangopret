@@ -73,7 +73,7 @@ class TestStrategy:
         assert cmd[0] == "winws.exe"
         assert "--wf-tcp=80,443" in cmd
         assert "--wf-udp=443" in cmd
-        assert "--filter-tcp" in cmd
+        assert "--filter-tcp=443" in cmd
 
     def test_build_command_linux(self) -> None:
         s = Strategy(id="test", name="Test")
