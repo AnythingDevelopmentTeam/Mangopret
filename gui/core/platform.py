@@ -8,7 +8,7 @@ import tarfile
 import tempfile
 import urllib.request
 from pathlib import Path
-from typing import Any, Callable, Optional, Tuple, List
+from typing import Any, Callable
 from core.log import get_logger
 
 logger = get_logger(__name__)
@@ -159,7 +159,7 @@ class PlatformInfo:
 
     # ------------------------------------------------------------------ process
 
-    def start_process(self, args: list) -> Optional[subprocess.Popen]:
+    def start_process(self, args: list) -> subprocess.Popen | None:
         cmd = [str(self.binary)] + args
         kwargs: dict[str, Any] = dict(
             cwd=str(self.bin_dir), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
@@ -470,7 +470,7 @@ class PlatformInfo:
             logger.debug("Failed to read config value %s: %s", key, exc)
         return default
 
-    def _systemd_cmd(self, action: str) -> Tuple[bool, str]:
+    def _systemd_cmd(self, action: str) -> tuple[bool, str]:
         try:
             r = subprocess.run(
                 ["systemctl", action, "zapret"],
@@ -480,19 +480,19 @@ class PlatformInfo:
         except Exception as exc:
             return (False, str(exc))
 
-    def start_systemd_service(self) -> Tuple[bool, str]:
+    def start_systemd_service(self) -> tuple[bool, str]:
         return self._systemd_cmd("start")
 
-    def stop_systemd_service(self) -> Tuple[bool, str]:
+    def stop_systemd_service(self) -> tuple[bool, str]:
         return self._systemd_cmd("stop")
 
-    def enable_systemd_service(self) -> Tuple[bool, str]:
+    def enable_systemd_service(self) -> tuple[bool, str]:
         return self._systemd_cmd("enable")
 
-    def disable_systemd_service(self) -> Tuple[bool, str]:
+    def disable_systemd_service(self) -> tuple[bool, str]:
         return self._systemd_cmd("disable")
 
-    def remove_systemd_service(self) -> Tuple[bool, str]:
+    def remove_systemd_service(self) -> tuple[bool, str]:
         try:
             self._systemd_cmd("stop")
             self._systemd_cmd("disable")
@@ -505,7 +505,7 @@ class PlatformInfo:
         except Exception as exc:
             return (False, str(exc))
 
-    def _windows_svc_cmd(self, action: str) -> Tuple[bool, str]:
+    def _windows_svc_cmd(self, action: str) -> tuple[bool, str]:
         if not self.is_windows:
             return (False, "Not Windows")
         try:
@@ -518,28 +518,28 @@ class PlatformInfo:
         except Exception as exc:
             return (False, str(exc))
 
-    def start_windows_service(self) -> Tuple[bool, str]:
+    def start_windows_service(self) -> tuple[bool, str]:
         return self._windows_svc_cmd("start")
 
-    def stop_windows_service(self) -> Tuple[bool, str]:
+    def stop_windows_service(self) -> tuple[bool, str]:
         return self._windows_svc_cmd("stop")
 
-    def service_start(self) -> Tuple[bool, str]:
+    def service_start(self) -> tuple[bool, str]:
         if self.is_windows:
             return self.start_windows_service()
         return self.start_systemd_service()
 
-    def service_stop(self) -> Tuple[bool, str]:
+    def service_stop(self) -> tuple[bool, str]:
         if self.is_windows:
             return self.stop_windows_service()
         return self.stop_systemd_service()
 
-    def service_remove(self) -> Tuple[bool, str]:
+    def service_remove(self) -> tuple[bool, str]:
         if self.is_windows:
             return self._remove_windows_service()
         return self.remove_systemd_service()
 
-    def _remove_windows_service(self) -> Tuple[bool, str]:
+    def _remove_windows_service(self) -> tuple[bool, str]:
         if not self.is_windows:
             return (False, "Not Windows")
         try:
@@ -556,7 +556,7 @@ class PlatformInfo:
         except Exception as exc:
             return (False, str(exc))
 
-    def service_install(self, strategy=None, strategy_name: str = "") -> Tuple[bool, str]:
+    def service_install(self, strategy=None, strategy_name: str = "") -> tuple[bool, str]:
         if self.is_windows:
             return self._install_windows_service(strategy)
         if strategy:
@@ -564,7 +564,7 @@ class PlatformInfo:
             return (ok, "" if ok else "Failed to create service")
         return (False, "No strategy provided")
 
-    def _install_windows_service(self, strategy=None) -> Tuple[bool, str]:
+    def _install_windows_service(self, strategy=None) -> tuple[bool, str]:
         if not self.is_windows:
             return (False, "Not Windows")
         try:
@@ -620,12 +620,12 @@ class PlatformInfo:
         else:
             return (Path.home() / ".config" / "autostart" / "mangopret.desktop").exists()
 
-    def enable_startup(self) -> Tuple[bool, str]:
+    def enable_startup(self) -> tuple[bool, str]:
         if self.is_windows:
             return self._enable_startup_windows()
         return self._enable_startup_linux()
 
-    def _enable_startup_linux(self) -> Tuple[bool, str]:
+    def _enable_startup_linux(self) -> tuple[bool, str]:
         try:
             autostart_dir = Path.home() / ".config" / "autostart"
             autostart_dir.mkdir(parents=True, exist_ok=True)
@@ -646,7 +646,7 @@ class PlatformInfo:
         except Exception as exc:
             return (False, str(exc))
 
-    def _enable_startup_windows(self) -> Tuple[bool, str]:
+    def _enable_startup_windows(self) -> tuple[bool, str]:
         try:
             gui_bat = self.base_dir / "run_gui.bat"
             if not gui_bat.exists():
@@ -668,12 +668,12 @@ class PlatformInfo:
         except Exception as exc:
             return (False, str(exc))
 
-    def disable_startup(self) -> Tuple[bool, str]:
+    def disable_startup(self) -> tuple[bool, str]:
         if self.is_windows:
             return self._disable_startup_windows()
         return self._disable_startup_linux()
 
-    def _disable_startup_linux(self) -> Tuple[bool, str]:
+    def _disable_startup_linux(self) -> tuple[bool, str]:
         try:
             dest = Path.home() / ".config" / "autostart" / "mangopret.desktop"
             if dest.exists():
@@ -683,7 +683,7 @@ class PlatformInfo:
         except Exception as exc:
             return (False, str(exc))
 
-    def _disable_startup_windows(self) -> Tuple[bool, str]:
+    def _disable_startup_windows(self) -> tuple[bool, str]:
         try:
             r = subprocess.run(
                 ["schtasks", "/delete", "/tn", "Mangopret", "/f"],
@@ -698,7 +698,7 @@ class PlatformInfo:
 
     # ------------------------------------------------------------------ desktop entry
 
-    def create_desktop_entry(self) -> Tuple[bool, str]:
+    def create_desktop_entry(self) -> tuple[bool, str]:
         if not self.is_linux:
             return (False, "Not Linux")
         try:
@@ -719,7 +719,7 @@ class PlatformInfo:
         except Exception as exc:
             return (False, str(exc))
 
-    def remove_desktop_entry(self) -> Tuple[bool, str]:
+    def remove_desktop_entry(self) -> tuple[bool, str]:
         if not self.is_linux:
             return (False, "Not Linux")
         try:

@@ -149,6 +149,9 @@ def main() -> None:
     platform = PlatformInfo(BASE_DIR)
     platform.ensure_dirs()
 
+    from core.log import set_log_dir
+    set_log_dir(str(platform.config_dir))
+
     config = Config(str(platform.config_dir))
 
     theme = config.get("theme", "system")

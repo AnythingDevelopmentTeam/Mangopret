@@ -175,6 +175,8 @@ class MainWindow(QMainWindow):
 
         if self.strategy_list:
             self.main_tab.set_description(self.strategies[self.strategy_list[0][0]].description)
+        else:
+            self.main_tab.set_description("No strategies found")
 
     def _setup_tray(self):
         self.tray = SystemTray(self)
@@ -279,7 +281,20 @@ class MainWindow(QMainWindow):
                 self._log(f"FAILED to install service: {err}")
                 self.status_bar.showMessage("Service install failed")
 
-        QTimer.singleShot(2000, self._refresh_status)
+        QTimer.singleShot(1500, self._verify_started)
+
+    def _verify_started(self):
+        if not self.active_strategy_name:
+            return
+        running = self.platform.is_process_running()
+        if not running:
+            self._log("Process crashed after start — cleaning up")
+            self.platform.service_stop()
+            self.active_strategy_name = ""
+            self.main_tab.set_active(False)
+            self.tray.set_active(False)
+            self.status_bar.showMessage("Process crashed on startup")
+        QTimer.singleShot(500, self._refresh_status)
 
     def _stop_strategy(self):
         if not self._require_root("stop"):

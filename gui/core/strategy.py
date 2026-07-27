@@ -3,7 +3,7 @@ import os
 import re
 import traceback
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 from dataclasses import dataclass, field
 from core.log import get_logger
 
@@ -74,7 +74,7 @@ class Strategy:
     wf_tcp: str = "80,443,2053,2083,2087,2096,8443"
     wf_udp: str = "443,19294-19344,50000-50100"
     rules: list[StrategyRule] = field(default_factory=list)
-    path: Optional[str] = None
+    path: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -155,7 +155,7 @@ class Strategy:
 
 class StrategyParser:
     @staticmethod
-    def from_file(path: str) -> Optional[Strategy]:
+    def from_file(path: str) -> Strategy | None:
         p = Path(path)
         if p.suffix == ".strategy":
             return StrategyParser._from_json(p)
@@ -164,7 +164,7 @@ class StrategyParser:
         return None
 
     @staticmethod
-    def _from_json(path: Path) -> Optional[Strategy]:
+    def _from_json(path: Path) -> Strategy | None:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -190,7 +190,7 @@ class StrategyParser:
             return None
 
     @staticmethod
-    def _from_bat(path: Path) -> Optional[Strategy]:
+    def _from_bat(path: Path) -> Strategy | None:
         try:
             content = path.read_text(encoding="utf-8", errors="ignore")
 

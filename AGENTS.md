@@ -89,7 +89,7 @@ Mutual exclusion: starting a strategy from GUI kills the service first; starting
 | `gui/ui/tray.py` | SystemTray: Strategies submenu, Show/Start/Stop/Fix Network/Quit, auto-start checkbox |
 | `gui/ui/theme.py` | DARK_THEME: Tokyo Night QSS stylesheet |
 | `gui/ui/tabs/main_tab.py` | MainTab: strategy combo, Start/Stop buttons, status labels, IPSet radio buttons |
-| `gui/ui/tabs/service_tab.py` | ServiceTab: zapret install (DownloadThread), systemd service CRUD, iptables apply/remove, updates, diagnostics |
+| ~~`gui/ui/tabs/service_tab.py`~~ | Removed — dead code (duplicated in `main_tab.py`) |
 | `gui/ui/tabs/lists_tab.py` | ListsTab: split-pane file editor for list-*.txt and ipset-*.txt |
 | `gui/ui/tabs/log_tab.py` | LogTab: timestamped log viewer with copy |
 | `gui/strategies/*.strategy` | 27 strategy JSON files (EXP, ALT..ALT12, SIMPLE FAKE, FAKE TLS AUTO, FAKE SPLIT, FAKE+DISORDER, MULTISPLIT, game DISCORD/STEAM/GENERAL) |
