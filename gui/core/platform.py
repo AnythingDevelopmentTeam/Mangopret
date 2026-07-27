@@ -8,7 +8,7 @@ import tarfile
 import tempfile
 import urllib.request
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 from core.log import get_logger
 
 logger = get_logger(__name__)

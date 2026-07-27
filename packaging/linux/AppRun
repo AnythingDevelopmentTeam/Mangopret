@@ -1,7 +1,15 @@
 #!/bin/bash
 HERE="$(dirname "$(readlink -f "$0")")"
+PYVER=$(ls "${HERE}/python/lib/" | grep -oP 'python3\.\d+' | head -1)
 export PATH="${HERE}/python/bin:${PATH}"
 export PYTHONHOME="${HERE}/python"
 export LD_LIBRARY_PATH="${HERE}/python/lib:${LD_LIBRARY_PATH}"
-export QT_QPA_PLATFORM_PLUGIN_PATH="${HERE}/python/lib/python3.11/site-packages/Qt6/plugins"
+export QT_QPA_PLATFORM_PLUGIN_PATH="${HERE}/python/lib/${PYVER}/site-packages/PyQt6/Qt6/plugins"
+
+for cli_cmd in install uninstall status strategies update stop fix diagnostics convert start service lists autostart help --help -h; do
+    if [ "$1" = "$cli_cmd" ]; then
+        exec "${HERE}/python/bin/python3" "${HERE}/gui/main.py" "$@"
+    fi
+done
+
 exec "${HERE}/python/bin/python3" "${HERE}/gui/main_gui.py" "$@"

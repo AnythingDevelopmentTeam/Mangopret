@@ -453,7 +453,7 @@ def main() -> None:
     try:
         import argcomplete
     except ImportError:
-        pass
+        argcomplete = None
     else:
         p_completion = sub.add_parser("completion", help="Generate shell completion script")
         p_completion.add_argument("shell", choices=["bash", "zsh", "fish"],

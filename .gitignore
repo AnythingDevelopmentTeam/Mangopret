@@ -27,6 +27,11 @@ Thumbs.db
 dist/
 *.whl
 
+# Build artifacts
+*.AppImage
+appimagetool
+squashfs-root/
+
 # Temp/log
 *.log
 *.pid

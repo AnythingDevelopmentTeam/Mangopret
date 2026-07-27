@@ -15,7 +15,7 @@ mkdir -p "${APP_DIR}/python"
 mkdir -p "${APP_DIR}/usr/share/icons/hicolor/scalable/apps"
 
 # Download portable Python
-PYTHON_URL="https://github.com/niess/python-build-standalone/releases/download/20250312/cpython-3.11.11+20250312-${ARCH}-unknown-linux-gnu-install_only.tar.gz"
+PYTHON_URL="https://github.com/astral-sh/python-build-standalone/releases/download/20260718/cpython-3.10.20+20260718-${ARCH}-unknown-linux-gnu-install_only.tar.gz"
 wget -q -O python.tar.gz "${PYTHON_URL}"
 tar -xzf python.tar.gz -C "${APP_DIR}/python" --strip-components=1
 rm python.tar.gz
@@ -44,6 +44,6 @@ wget -q -O appimagetool "https://github.com/AppImage/AppImageKit/releases/downlo
 chmod +x appimagetool
 
 # Build AppImage
-./appimagetool --no-appstream "${APP_DIR}" "${APP}-${VERSION}-${ARCH}.AppImage"
+ARCH="${ARCH}" ./appimagetool --no-appstream "${APP_DIR}" "${APP}-${VERSION}-${ARCH}.AppImage"
 
 echo "Done: ${APP}-${VERSION}-${ARCH}.AppImage"
