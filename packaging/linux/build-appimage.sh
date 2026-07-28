@@ -27,6 +27,7 @@ rm python.tar.gz
 cp -r gui "${APP_DIR}/gui"
 cp -r lists "${APP_DIR}/lists"
 cp -r bin "${APP_DIR}/bin"
+cp -r strategies "${APP_DIR}/strategies"
 cp -r .service "${APP_DIR}/.service" 2>/dev/null || true
 cp run.sh run_gui.sh README.md README.en.md LICENSE.txt "${APP_DIR}/"
 cp packaging/linux/AppRun "${APP_DIR}/AppRun"

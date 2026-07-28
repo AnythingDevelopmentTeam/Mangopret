@@ -12,7 +12,7 @@ from PyQt6.QtGui import QIcon
 from .tabs.main_tab import MainTab
 from .tabs.lists_tab import ListsTab
 from .tabs.log_tab import LogTab
-from .tray import SystemTray
+# from .tray import SystemTray  # DEPRECATED: will be removed in 1.3.0
 from core.strategy import Strategy, StrategyParser
 
 
@@ -47,58 +47,13 @@ class MainWindow(QMainWindow):
                 self._on_strategy_changed(idx)
 
     def _require_root(self, action, payload=None):
-        if self.platform.IS_ROOT:
-            return True
-
-        if self.platform.is_windows:
-            return self._elevate_windows(action, payload)
-
-        return self._elevate_linux(action, payload)
+        return True  # DEPRECATED: will be removed in 1.3.0 (root elevation removed)
 
     def _elevate_linux(self, action, payload=None):
-        self.config.set("_pending_root_action", {"action": action, "payload": payload or {}})
-        script = sys.argv[0]
-        args = list(sys.argv[1:])
-        if self._start_minimized and "--minimized" not in args:
-            args.append("--minimized")
-        try:
-            subprocess.Popen(
-                ["pkexec", "--disable-internal-agent", script] + args,
-                env={
-                    **os.environ,
-                    "DISPLAY": os.environ.get("DISPLAY", ""),
-                    "XAUTHORITY": os.environ.get("XAUTHORITY", ""),
-                },
-            )
-        except Exception as e:
-            QMessageBox.critical(self, "Elevation failed", str(e))
-            return False
-        QApplication.quit()
-        return False
+        pass  # DEPRECATED: will be removed in 1.3.0
 
     def _elevate_windows(self, action, payload=None):
-        try:
-            import ctypes
-            script = os.path.abspath(sys.argv[0])
-            gui_dir = os.path.dirname(script)
-            args = list(sys.argv[1:])
-            if self._start_minimized and "--minimized" not in args:
-                args.append("--minimized")
-            args_str = " ".join(f'"{a}"' for a in args)
-
-            ret = ctypes.windll.shell32.ShellExecuteW(
-                None, "runas", sys.executable, f'"{script}" {args_str}',
-                gui_dir, 1,
-            )
-            if ret <= 32:
-                QMessageBox.critical(self, "Elevation failed",
-                                     "User denied UAC elevation or an error occurred.")
-                return False
-        except Exception as e:
-            QMessageBox.critical(self, "Elevation failed", str(e))
-            return False
-        QApplication.quit()
-        return False
+        pass  # DEPRECATED: will be removed in 1.3.0
 
     def _ensure_zapret(self):
         if self.platform.is_windows:
@@ -179,17 +134,7 @@ class MainWindow(QMainWindow):
             self.main_tab.set_description("No strategies found")
 
     def _setup_tray(self):
-        self.tray = SystemTray(self)
-        self.tray.set_strategies(
-            [(name, sid) for name, sid in self.strategy_list],
-            self._start_strategy,
-        )
-        self.tray.show_requested.connect(self._show_window)
-        self.tray.start_requested.connect(self._start_strategy)
-        self.tray.stop_requested.connect(self._stop_strategy)
-        self.tray.quit_requested.connect(self._quit)
-
-        self.tray.show()
+        pass  # DEPRECATED: will be removed in 1.3.0 (system tray removed)
 
     def _setup_timer(self):
         self._status_timer = QTimer(self)
@@ -256,9 +201,9 @@ class MainWindow(QMainWindow):
             if ok:
                 self.active_strategy_name = name
                 self.main_tab.set_active(True, name)
-                self.tray.set_active(True, name)
+                # self.tray.set_active(True, name)  # DEPRECATED: will be removed in 1.3.0
                 self.status_bar.showMessage(f"Active: {name}")
-                self.tray.show_message("Mangopret", f"Service started: {name}")
+                # self.tray.show_message("Mangopret", f"Service started: {name}")  # DEPRECATED: will be removed in 1.3.0
                 self._log(f"Service started: {name}")
             else:
                 self._log(f"FAILED to start service: {err}")
@@ -270,9 +215,9 @@ class MainWindow(QMainWindow):
                 if ok2:
                     self.active_strategy_name = name
                     self.main_tab.set_active(True, name)
-                    self.tray.set_active(True, name)
+                    # self.tray.set_active(True, name)  # DEPRECATED: will be removed in 1.3.0
                     self.status_bar.showMessage(f"Active: {name}")
-                    self.tray.show_message("Mangopret", f"Service started: {name}")
+                    # self.tray.show_message("Mangopret", f"Service started: {name}")  # DEPRECATED: will be removed in 1.3.0
                     self._log(f"Service started: {name}")
                 else:
                     self._log(f"FAILED to start service: {err2}")
@@ -292,7 +237,7 @@ class MainWindow(QMainWindow):
             self.platform.service_stop()
             self.active_strategy_name = ""
             self.main_tab.set_active(False)
-            self.tray.set_active(False)
+            # self.tray.set_active(False)  # DEPRECATED: will be removed in 1.3.0
             self.status_bar.showMessage("Process crashed on startup")
         QTimer.singleShot(500, self._refresh_status)
 
@@ -308,7 +253,7 @@ class MainWindow(QMainWindow):
             return
         self.active_strategy_name = ""
         self.main_tab.set_active(False)
-        self.tray.set_active(False)
+        # self.tray.set_active(False)  # DEPRECATED: will be removed in 1.3.0
         self.status_bar.showMessage("Stopped")
         self._log("Service stopped")
         QTimer.singleShot(1000, self._refresh_status)
@@ -322,28 +267,16 @@ class MainWindow(QMainWindow):
         self._remove_service_for(self.main_tab.get_selected_strategy())
 
     def _set_autostart_force(self, enabled):
-        if not self.platform.is_linux:
-            return
-        if enabled:
-            ok, err = self.platform.enable_systemd_service()
-        else:
-            ok, err = self.platform.disable_systemd_service()
-        state = "enabled" if enabled else "disabled"
-        if ok:
-            self._log(f"Auto-start {state}")
-            self.status_bar.showMessage(f"Auto-start {state}")
-        else:
-            self._log(f"Failed to change auto-start: {err}")
-        self._refresh_status()
+        pass  # DEPRECATED: will be removed in 1.3.0 (autostart removed)
 
     def _install_zapret_root(self):
-        self._ensure_zapret()
+        pass  # DEPRECATED: will be removed in 1.3.0 (root elevation removed)
 
     def _update_ipset_root(self):
-        self._update_ipset()
+        pass  # DEPRECATED: will be removed in 1.3.0 (root elevation removed)
 
     def _update_hosts_root(self):
-        self._update_hosts()
+        pass  # DEPRECATED: will be removed in 1.3.0 (root elevation removed)
 
     def _refresh_status(self):
         service_status = self.platform.get_service_status()
@@ -365,12 +298,12 @@ class MainWindow(QMainWindow):
             pass
         elif service_status == "running" and not self.active_strategy_name:
             self.main_tab.set_active(True)
-            self.tray.set_active(True)
+            # self.tray.set_active(True)  # DEPRECATED: will be removed in 1.3.0
         elif service_status != "running" and self.active_strategy_name:
             self.active_strategy_name = ""
             self._pending_start_name = ""
             self.main_tab.set_active(False)
-            self.tray.set_active(False)
+            # self.tray.set_active(False)  # DEPRECATED: will be removed in 1.3.0
             self.status_bar.showMessage("Service stopped")
 
     def _log(self, message: str):
@@ -402,17 +335,10 @@ class MainWindow(QMainWindow):
         self.activateWindow()
 
     def _quit(self):
-        self.tray.hide()
+        # self.tray.hide()  # DEPRECATED: will be removed in 1.3.0
         QApplication.instance().quit()
 
     def closeEvent(self, event):
-        if self.config.get("minimize_to_tray", True) and self.tray.tray.isVisible():
-            event.ignore()
-            self.hide()
-            self.tray.show_message(
-                "Mangopret",
-                "Minimized to tray. Double-click to restore.",
-            )
-        else:
-            self._quit()
-            event.accept()
+        # DEPRECATED: will be removed in 1.3.0 (minimize_to_tray removed)
+        self._quit()
+        event.accept()

@@ -35,7 +35,7 @@ class PlatformInfo:
         self.bin_dir = self.base_dir / "bin"
         self.lists_dir = self.base_dir / "lists"
         self.utils_dir = self.base_dir / "utils"
-        self.strategies_dir = self.base_dir / "gui" / "strategies"
+        self.strategies_dir = self.base_dir / "strategies"
         self.config_dir = self._get_config_dir()
         self.zapret_dir = ZAPRET_DIR
 
@@ -92,6 +92,17 @@ class PlatformInfo:
             return True
         return self._install_zapret_linux(callback)
 
+    @staticmethod
+    def _is_atomic_system() -> bool:
+        try:
+            if shutil.which("rpm-ostree"):
+                return True
+            if Path("/run/ostree-booted").exists():
+                return True
+        except Exception:
+            pass
+        return False
+
     def _install_zapret_linux(self, callback: Callable[[str], None] | None = None) -> bool:
         tmpdir: Path | None = None
         try:
@@ -116,29 +127,109 @@ class PlatformInfo:
                     break
             src = src or tmpdir
 
+            target = self.zapret_dir
             if callback:
-                callback(f"Installing to {self.zapret_dir} ...")
+                callback(f"Installing to {target} ...")
 
-            installer = Path(__file__).parent.parent.parent / "silent_install.sh"
-            if not installer.exists():
+            if target.exists() and any(target.iterdir()):
                 if callback:
-                    callback(f"Error: installer not found at {installer}")
-                return False
+                    callback(f"Cleaning existing {target} ...")
+                shutil.rmtree(target)
 
-            proc = subprocess.run(
-                ["bash", str(installer), str(src), str(self.zapret_dir)],
-                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=600,
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(str(src), str(target), symlinks=True)
+
+            (target / "tmp").mkdir(exist_ok=True)
+
+            ipset_dir = target / "ipset"
+            ipset_dir.mkdir(parents=True, exist_ok=True)
+
+            exclude_file = ipset_dir / "zapret-hosts-user-exclude.txt"
+            if not exclude_file.exists():
+                default_exclude = ipset_dir / "zapret-hosts-user-exclude.txt.default"
+                if default_exclude.exists():
+                    shutil.copy2(default_exclude, exclude_file)
+                else:
+                    exclude_file.touch()
+
+            user_file = ipset_dir / "zapret-hosts-user.txt"
+            if not user_file.exists():
+                user_file.write_text("nonexistent.domain\n")
+
+            ipban_file = ipset_dir / "zapret-hosts-user-ipban.txt"
+            if not ipban_file.exists():
+                ipban_file.touch()
+
+            config_file = target / "config"
+            if not config_file.exists():
+                default_config = target / "config.default"
+                if default_config.exists():
+                    shutil.copy2(default_config, config_file)
+
+            config_content = config_file.read_text() if config_file.exists() else ""
+            if "FWTYPE=" not in config_content:
+                try:
+                    r = subprocess.run(["which", "nft"], capture_output=True, timeout=5)
+                    fwtype = "nftables" if r.returncode == 0 else "iptables"
+                except Exception:
+                    fwtype = "nftables"
+                with open(config_file, "a") as f:
+                    f.write(f"FWTYPE={fwtype}\n")
+
+            if callback:
+                callback("Detecting architecture and linking binaries ...")
+            subprocess.run(
+                ["bash", str(target / "install_bin.sh")],
+                cwd=str(target),
+                capture_output=True, text=True, timeout=120,
             )
-            for line in proc.stdout.splitlines():
+
+            if self._is_atomic_system():
                 if callback:
-                    callback(line)
-            if proc.returncode != 0:
+                    callback("Atomic system detected — install_prereq.sh skipped (system packages not available)")
+            else:
                 if callback:
-                    callback(f"Installer failed (exit code {proc.returncode})")
-                    if proc.stderr:
-                        for line in proc.stderr.splitlines()[-5:]:
+                    callback("Installing prerequisites ...")
+                try:
+                    fwtype = "nftables"
+                    if config_file.exists():
+                        for line in config_file.read_text().splitlines():
+                            if line.startswith("FWTYPE="):
+                                fwtype = line.split("=", 1)[1].strip()
+                                break
+                    env = os.environ.copy()
+                    env["ZAPRET_BASE"] = str(target)
+                    env["FWTYPE"] = fwtype
+                    proc = subprocess.run(
+                        ["bash", str(target / "install_prereq.sh")],
+                        cwd=str(target), env=env,
+                        capture_output=True, text=True, timeout=300,
+                    )
+                    if callback:
+                        for line in proc.stdout.splitlines():
                             callback(line)
-                return False
+                    if proc.returncode != 0:
+                        if callback:
+                            callback("WARNING: some prerequisites may not be installed")
+                except Exception as exc:
+                    if callback:
+                        callback(f"WARNING: prerequisites install failed: {exc}")
+
+            if callback:
+                callback("Setting permissions ...")
+            for d in target.rglob("*"):
+                if d.is_dir():
+                    d.chmod(0o755)
+                elif d.is_file():
+                    d.chmod(0o644)
+            subprocess.run(["chown", "-R", "root:root", str(target)], capture_output=True, timeout=30)
+            for pattern in ("ip2net", "nfqws", "tpws", "mdig"):
+                for f in (target / "binaries").rglob(pattern):
+                    f.chmod(0o755)
+            for script in ("install_bin.sh", "install_easy.sh", "install_prereq.sh", "blockcheck.sh", "uninstall_easy.sh"):
+                p = target / script
+                if p.exists():
+                    p.chmod(0o755)
 
             if callback:
                 callback("Installation complete!")

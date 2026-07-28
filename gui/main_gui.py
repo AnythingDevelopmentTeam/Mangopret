@@ -62,29 +62,10 @@ def _start_server(parent_window) -> QLocalServer | None:
     return server
 
 
-_REQUIRES_ROOT = frozenset({
-    "start", "stop", "install_service", "remove_service",
-    "enable_autostart", "disable_autostart", "install_desktop",
-    "remove_desktop", "install_zapret", "update_ipset", "update_hosts",
-})
-
+_REQUIRES_ROOT = frozenset()  # DEPRECATED: will be removed in 1.3.0 (root elevation removed)
 
 def _relaunch_elevated(args: list[str]) -> bool:
-    script = sys.argv[0]
-    pkexec_args = [script] + args
-    try:
-        subprocess.Popen(
-            ["pkexec", "--disable-internal-agent"] + pkexec_args,
-            env={
-                **os.environ,
-                "DISPLAY": os.environ.get("DISPLAY", ""),
-                "XAUTHORITY": os.environ.get("XAUTHORITY", ""),
-            },
-        )
-    except Exception as exc:
-        logger.error("Failed to relaunch with pkexec: %s", exc)
-        return False
-    return True
+    return True  # DEPRECATED: will be removed in 1.3.0
 
 
 def _run_pending(window) -> None:
@@ -98,24 +79,7 @@ def _run_pending(window) -> None:
 
 
 def _dispatch(window, action: str, payload: dict) -> None:
-    if action == "start":
-        window._start_strategy(payload.get("strategy", ""))
-    elif action == "stop":
-        window._stop_strategy()
-    elif action == "install_service":
-        window._install_service_from_payload(payload)
-    elif action == "remove_service":
-        window._remove_service_confirm()
-    elif action == "enable_autostart":
-        window._set_autostart_force(True)
-    elif action == "disable_autostart":
-        window._set_autostart_force(False)
-    elif action == "install_zapret":
-        window._install_zapret_root()
-    elif action == "update_ipset":
-        window._update_ipset_root()
-    elif action == "update_hosts":
-        window._update_hosts_root()
+    pass  # DEPRECATED: will be removed in 1.3.0 (root elevation dispatch removed)
 
 
 def _handle_sigint(sig, frame) -> None:

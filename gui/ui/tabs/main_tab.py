@@ -184,12 +184,13 @@ class MainTab(QWidget):
             svc_row.addWidget(self.btn_remove_svc)
             g_layout.addLayout(svc_row)
 
-            boot_row = QHBoxLayout()
-            self.chk_autostart = QCheckBox("Enable on boot")
-            self.chk_autostart.clicked.connect(self._toggle_autostart)
-            boot_row.addWidget(self.chk_autostart)
-            boot_row.addStretch()
-            g_layout.addLayout(boot_row)
+            # DEPRECATED: will be removed in 1.3.0 (autostart checkbox removed)
+            # boot_row = QHBoxLayout()
+            # self.chk_autostart = QCheckBox("Enable on boot")
+            # self.chk_autostart.clicked.connect(self._toggle_autostart)
+            # boot_row.addWidget(self.chk_autostart)
+            # boot_row.addStretch()
+            # g_layout.addLayout(boot_row)
 
             self.svc_status_label = QLabel("")
             self.svc_status_label.setObjectName("subHeaderLabel")
@@ -218,22 +219,7 @@ class MainTab(QWidget):
         layout.addWidget(group)
 
     def _build_startup_ui(self, layout):
-        group = QGroupBox("Startup")
-        g_layout = QVBoxLayout(group)
-
-        startup_row = QHBoxLayout()
-        self.chk_startup = QCheckBox("Start Mangopret on login (minimized to tray)")
-        self.chk_startup.clicked.connect(self._toggle_startup)
-        startup_row.addWidget(self.chk_startup)
-        startup_row.addStretch()
-        g_layout.addLayout(startup_row)
-
-        hint = QLabel("On Windows, triggers UAC prompt at login. On Linux, uses XDG autostart.")
-        hint.setObjectName("subHeaderLabel")
-        hint.setWordWrap(True)
-        g_layout.addWidget(hint)
-
-        layout.addWidget(group)
+        pass  # DEPRECATED: will be removed in 1.3.0
 
     def _build_updates_ui(self, layout):
         group = QGroupBox("Updates")
@@ -328,15 +314,10 @@ class MainTab(QWidget):
         if enabled:
             parts.append("Auto-start: ON")
         self.svc_status_label.setText(" | ".join(parts))
-        self.chk_autostart.setChecked(enabled)
+        # self.chk_autostart.setChecked(enabled)  # DEPRECATED: will be removed in 1.3.0
 
     def refresh_startup_status(self):
-        if not self.platform:
-            return
-        enabled = self.platform.is_startup_enabled()
-        self.chk_startup.blockSignals(True)
-        self.chk_startup.setChecked(enabled)
-        self.chk_startup.blockSignals(False)
+        pass  # DEPRECATED: will be removed in 1.3.0
 
     def _on_start(self):
         name = self.get_selected_strategy()
@@ -398,20 +379,7 @@ class MainTab(QWidget):
         self.refresh_service_status()
 
     def _toggle_autostart(self):
-        if not self.platform or not self.platform.is_linux:
-            return
-        enabled = self.chk_autostart.isChecked()
-        if enabled:
-            ok, err = self.platform.enable_systemd_service()
-        else:
-            ok, err = self.platform.disable_systemd_service()
-        if ok:
-            state = "enabled" if enabled else "disabled"
-            self.diag_text.append(f"Auto-start {state}")
-            self.log_signal.emit(f"Auto-start {state}")
-        else:
-            self.diag_text.append(f"Failed to change auto-start: {err}")
-        self.refresh_service_status()
+        pass  # DEPRECATED: will be removed in 1.3.0
 
     def _install_desktop_entry(self):
         if not self.platform:
@@ -434,24 +402,7 @@ class MainTab(QWidget):
             self.diag_text.append(f"Failed: {msg}")
 
     def _toggle_startup(self):
-        if not self.platform:
-            return
-        enabled = self.chk_startup.isChecked()
-        if enabled:
-            ok, err = self.platform.enable_startup()
-        else:
-            ok, err = self.platform.disable_startup()
-        if ok:
-            state = "enabled" if enabled else "disabled"
-            self.diag_text.append(f"Startup {state}")
-            self.log_signal.emit(f"Startup {state}")
-        else:
-            self.diag_text.append(f"Failed to change startup: {err}")
-            self.log_signal.emit(f"Startup change failed: {err}")
-            self.chk_startup.blockSignals(True)
-            self.chk_startup.setChecked(not enabled)
-            self.chk_startup.blockSignals(False)
-        self.startup_changed.emit(enabled)
+        pass  # DEPRECATED: will be removed in 1.3.0
 
     def _update_ipset(self):
         if not self.list_manager:
@@ -477,16 +428,29 @@ class MainTab(QWidget):
     def _check_updates(self):
         self.diag_text.append("Checking for updates...")
         self.log_signal.emit("Checking for updates...")
+
+        from core.update import check_mangopret_update
+        result = check_mangopret_update()
+        if result:
+            current, latest, _ = result
+            self.diag_text.append(f"Mangopret: {current} → latest: {latest}")
+            self.log_signal.emit(f"Mangopret: {current} → latest: {latest}")
+            if latest != current:
+                self.diag_text.append("UPDATE AVAILABLE")
+                self.log_signal.emit("UPDATE AVAILABLE — Download at https://github.com/Flowseal/mangopret/releases")
+        else:
+            self.diag_text.append("Mangopret: update check failed")
+
         try:
             import urllib.request
             url = "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/.service/version.txt"
             req = urllib.request.Request(url, headers={"User-Agent": "Mangopret"})
             with urllib.request.urlopen(req, timeout=10) as resp:
                 remote_version = resp.read().decode().strip()
-            self.diag_text.append(f"Remote version: {remote_version}")
-            self.log_signal.emit(f"Remote version: {remote_version}")
+            self.diag_text.append(f"Zapret: {remote_version}")
+            self.log_signal.emit(f"Zapret: {remote_version}")
         except Exception as e:
-            self.diag_text.append(f"Failed to check: {e}")
+            self.diag_text.append(f"Zapret: check failed — {e}")
 
     def _run_diagnostics(self):
         if not self.list_manager or not self.platform:

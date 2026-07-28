@@ -13,6 +13,7 @@ BASE_DIR = os.path.dirname(SCRIPT_DIR)
 
 sys.path.insert(0, SCRIPT_DIR)
 
+from gui import APP_VERSION
 from core.platform import PlatformInfo
 from core.config import Config
 from core.strategy import StrategyParser
@@ -30,7 +31,7 @@ BANNER = r"""
                       __/ |
                      |___/                           v%s
 
-""" % "2.2.0"
+""" % APP_VERSION
 
 
 def get_platform() -> PlatformInfo:
@@ -371,30 +372,21 @@ def cmd_completion(args: argparse.Namespace) -> None:
 
 
 def cmd_autostart(args: argparse.Namespace) -> None:
-    p = get_platform()
-    action = args.action
+    print("Autostart management is disabled.")  # DEPRECATED: will be removed in 1.3.0
 
-    if action == "enable":
-        ok, err = p.enable_startup()
-        if ok:
-            print("Autostart enabled.")
-            if p.is_windows:
-                print("Mangopret will start on login with UAC prompt.")
-            else:
-                print("XDG autostart entry created in ~/.config/autostart/")
+
+def cmd_version(args: argparse.Namespace) -> None:
+    from core.update import check_mangopret_update
+    print(f"Mangopret v{APP_VERSION}")
+    result = check_mangopret_update()
+    if result:
+        _, latest, _ = result
+        if latest == APP_VERSION:
+            print(f"You are up to date (latest: {latest})")
         else:
-            print(f"Failed to enable autostart: {err}")
-            sys.exit(1)
-    elif action == "disable":
-        ok, err = p.disable_startup()
-        if ok:
-            print("Autostart disabled.")
-        else:
-            print(f"Failed to disable autostart: {err}")
-            sys.exit(1)
-    elif action == "status":
-        enabled = p.is_startup_enabled()
-        print(f"Autostart: {'enabled' if enabled else 'disabled'}")
+            print(f"UPDATE AVAILABLE: {latest}")
+    else:
+        print("Update check failed (no network?)")
 
 
 def _load_strategies(p: PlatformInfo) -> dict:
@@ -418,6 +410,7 @@ def main() -> None:
         prog="run.sh",
         description="Mangopret - zapret DPI bypass manager",
     )
+    parser.add_argument("--version", action="store_true", help="Show version and exit")
     sub = parser.add_subparsers(dest="command")
 
     sub.add_parser("install", help="Download and install zapret to /opt/zapret")
@@ -431,8 +424,8 @@ def main() -> None:
 
     p_convert = sub.add_parser("convert", help="Convert .bat or zapret config files to .strategy")
     p_convert.add_argument("input", help="Input .bat file or directory containing .bat/.strategy files")
-    p_convert.add_argument("-o", "--output", default="gui/strategies",
-                           help="Output directory for .strategy files (default: gui/strategies)")
+    p_convert.add_argument("-o", "--output", default="strategies",
+                           help="Output directory for .strategy files (default: strategies)")
 
     p_start = sub.add_parser("start", help="Start a strategy")
     p_start.add_argument("strategy", nargs="?", default="", help="Strategy name")
@@ -446,6 +439,8 @@ def main() -> None:
     p_lists.add_argument("action", nargs="?", default="list",
                          choices=["list", "update-strategies", "update-ipset", "update-hosts", "edit"])
     p_lists.add_argument("file", nargs="?", default=None)
+
+    sub.add_parser("version", help="Show version and check for updates")
 
     p_autostart = sub.add_parser("autostart", help="Manage login autostart")
     p_autostart.add_argument("action", choices=["enable", "disable", "status"])
@@ -463,6 +458,10 @@ def main() -> None:
         argcomplete.autocomplete(parser)
     args = parser.parse_args()
 
+    if args.version:
+        cmd_version(args)
+        return
+
     if not args.command:
         print(BANNER)
         parser.print_help()
@@ -476,6 +475,7 @@ def main() -> None:
         "fix": cmd_fix,
         "status": cmd_status,
         "strategies": cmd_strategies,
+        "version": cmd_version,
         "update": cmd_update,
         "service": cmd_service,
         "lists": cmd_lists,
