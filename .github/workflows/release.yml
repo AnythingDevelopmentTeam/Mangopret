@@ -23,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
 
-      - name: Download embeddable Python
+      - name: Download and bundle portable Python
         shell: pwsh
         run: |
           $assets = (Invoke-RestMethod "https://api.github.com/repos/astral-sh/python-build-standalone/releases/latest").assets
@@ -36,14 +36,6 @@ jobs:
           $py = Get-ChildItem "$env:RUNNER_TEMP\python-dist" -Recurse -Filter python.exe | Select-Object -First 1
           if (-not $py) { throw "python.exe not found in portable dist" }
           echo "PYTHON_DIR=$($py.Directory.FullName)" >> $env:GITHUB_ENV
-
-      - name: Bootstrap pip and install PyQt6
-        shell: pwsh
-        run: |
-          $py = "$env:PYTHON_DIR\python.exe"
-          Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile "$env:RUNNER_TEMP\get-pip.py"
-          & $py "$env:RUNNER_TEMP\get-pip.py" --no-warn-script-location
-          & $py -m pip install "PyQt6>=6.5" --no-warn-script-location
 
       - name: Bundle portable app
         shell: pwsh
