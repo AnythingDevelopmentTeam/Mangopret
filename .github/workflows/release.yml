@@ -50,9 +50,12 @@ jobs:
         run: |
           $V = "$env:VERSION"
           $dist = "mangopret-${V}-win64"
-          New-Item -ItemType Directory -Force "$dist"
-          New-Item -ItemType Directory -Force "$dist\python"
-          robocopy "$env:PYTHON_DIR" "$dist\python" /E /NP /NFL /NDL > $null
+          New-Item -ItemType Directory -Force "$dist" | Out-Null
+          $pyDir = "$env:PYTHON_DIR"
+          if (-not (Test-Path $pyDir)) { throw "PYTHON_DIR '$pyDir' not found" }
+          $pyDst = "$dist\python"
+          New-Item -ItemType Directory -Force $pyDst | Out-Null
+          Get-ChildItem -Path $pyDir | Copy-Item -Destination $pyDst -Recurse -Force
           Copy-Item "gui" "$dist\" -Recurse -Force
           Copy-Item "lists" "$dist\" -Recurse -Force
           Copy-Item "bin" "$dist\" -Recurse -Force
