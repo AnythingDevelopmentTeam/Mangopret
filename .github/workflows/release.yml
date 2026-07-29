@@ -96,6 +96,8 @@ jobs:
           echo "hash=${HASH:-placeholder}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/checkout@v7.0.1
+        with:
+          ref: updatecheck
 
       - name: Update checkupdate file
         run: |
