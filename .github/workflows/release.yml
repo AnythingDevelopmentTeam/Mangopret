@@ -68,12 +68,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v8.0.1
-        with:
-          path: artifacts
+
+      - name: Debug artifact structure
+        run: find . -type f | head -30
 
       - name: Compute SHA256
         run: |
-          sha256sum artifacts/*/*.tar.gz artifacts/*/*.AppImage artifacts/*/*.zip > checksums.txt
+          find . -maxdepth 3 \( -name '*.tar.gz' -o -name '*.AppImage' -o -name '*.zip' \) -type f -exec sha256sum {} + > checksums.txt
           cat checksums.txt
 
       - name: Create Release
@@ -82,16 +83,16 @@ jobs:
           tag_name: ${{ env.VERSION }}
           name: ${{ env.VERSION }}
           files: |
-            artifacts/*/*.tar.gz
-            artifacts/*/*.AppImage
-            artifacts/*/*.zip
+            *.tar.gz
+            *.AppImage
+            *.zip
             checksums.txt
           generate_release_notes: true
 
       - name: Compute hash for checkupdate
         id: hash
         run: |
-          HASH=$(sha256sum artifacts/*/*.tar.gz | cut -d' ' -f1 | head -1)
+          HASH=$(find . -maxdepth 3 -name '*.tar.gz' -type f -exec sha256sum {} + | head -1 | cut -d' ' -f1)
           echo "hash=${HASH:-placeholder}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/checkout@v7.0.1
