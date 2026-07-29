@@ -397,6 +397,7 @@ class MainTab(QWidget):
         self.platform.kill_all()
         self.platform.remove_systemd_service()
         import shutil
+
         zapret_dir = self.platform.zapret_dir
         if zapret_dir.exists():
             shutil.rmtree(zapret_dir)

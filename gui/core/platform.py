@@ -217,7 +217,9 @@ class PlatformInfo:
                 atomic_installer = self.base_dir / "install_bin_atomic.sh"
                 if atomic_installer.exists():
                     if callback:
-                        callback("Atomic system detected — running install_bin_atomic.sh ...")
+                        callback(
+                            "Atomic system detected — running install_bin_atomic.sh ..."
+                        )
                     subprocess.run(
                         ["bash", str(atomic_installer)],
                         cwd=str(target),
@@ -620,7 +622,9 @@ class PlatformInfo:
             shutil.copy2(str(official_link), str(official_service))
             logger.info("Installed official zapret.service")
         else:
-            logger.warning("Official zapret.service not found — creating inline fallback")
+            logger.warning(
+                "Official zapret.service not found — creating inline fallback"
+            )
             fallback = (
                 "[Unit]\n"
                 "Description=zapret DPI bypass (mangopret-managed)\n"
@@ -988,5 +992,3 @@ class PlatformInfo:
             return (False, r.stderr.strip() or r.stdout.strip())
         except Exception as exc:
             return (False, str(exc))
-
-
