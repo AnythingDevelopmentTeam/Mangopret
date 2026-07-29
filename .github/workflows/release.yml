@@ -4,48 +4,111 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release tag (e.g., v2.3.0)'
+        required: true
+        type: string
+
+env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+  VERSION: ${{ inputs.version || github.ref_name }}
 
 permissions:
   contents: write
 
 jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: Download embeddable Python
+        shell: pwsh
+        run: |
+          $url = "https://github.com/niess/python-build-standalone/releases/download/20250312/cpython-3.11.11+20250312-x86_64-pc-windows-msvc-shared-install_only.tar.gz"
+          $out = "$env:RUNNER_TEMP\python.tar.gz"
+          Invoke-WebRequest -Uri $url -OutFile $out
+          tar -xzf $out -C "$env:RUNNER_TEMP\python-dist"
+          $py = Get-ChildItem "$env:RUNNER_TEMP\python-dist" -Recurse -Filter python.exe | Select-Object -First 1
+          if (-not $py) { throw "python.exe not found in portable dist" }
+          echo "PYTHON_DIR=$($py.Directory.FullName)" >> $env:GITHUB_ENV
+
+      - name: Bootstrap pip and install PyQt6
+        shell: pwsh
+        run: |
+          $py = "$env:PYTHON_DIR\python.exe"
+          Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile "$env:RUNNER_TEMP\get-pip.py"
+          & $py "$env:RUNNER_TEMP\get-pip.py" --no-warn-script-location
+          & $py -m pip install "PyQt6>=6.5" --no-warn-script-location
+
+      - name: Bundle portable app
+        shell: pwsh
+        run: |
+          $V = "$env:VERSION"
+          $dist = "mangopret-${V}-win64"
+          New-Item -ItemType Directory -Path $dist -Force
+          Copy-Item "$env:PYTHON_DIR\*" "$dist\python\" -Recurse -Force
+          Copy-Item "gui" "$dist\" -Recurse -Force
+          Copy-Item "lists" "$dist\" -Recurse -Force
+          Copy-Item "bin" "$dist\" -Recurse -Force
+          Copy-Item "pip" "$dist\" -Recurse -Force
+          Copy-Item "run.bat", "run_gui.bat", "README.md", "README.en.md", "LICENSE.txt" "$dist\"
+          Compress-Archive -Path "$dist\*" -DestinationPath "$dist.zip" -Force
+
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: win64-bundle
+          path: mangopret-${{ env.VERSION }}-win64.zip
+
   build-linux:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
+
+      - name: Build portable tar.gz
+        run: |
+          DIST="mangopret-${VERSION}-linux-$(uname -m)"
+          mkdir -p "$DIST"
+          cp -r gui lists bin .service "$DIST/"
+          cp run.sh run_gui.sh silent_install.sh README.md README.en.md LICENSE.txt "$DIST/"
+          cp -r pip "$DIST/"
+          tar czf "${DIST}.tar.gz" "$DIST"
 
       - name: Build AppImage
         run: |
-          VERSION="${{ github.ref_name }}"
           sudo apt-get update -qq && sudo apt-get install -y -qq fuse libfuse2 wget
           bash packaging/linux/build-appimage.sh "${VERSION#v}"
-          mv mangopret-*.AppImage mangopret-*.tar.gz* . 2>/dev/null || true
+          mv mangopret-*.AppImage . 2>/dev/null || true
           ls -la
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7.0.1
         with:
           name: linux-bundle
           path: |
-            mangopret-*.AppImage
             mangopret-*.tar.gz
+            mangopret-*.AppImage
 
   release:
-    needs: [build-linux]
+    needs: [build-windows, build-linux]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8.0.1
 
       - name: Compute SHA256
         run: |
-          sha256sum linux-bundle/*.AppImage linux-bundle/*.tar.gz > checksums.txt
+          sha256sum win64-bundle/*.zip linux-bundle/*.tar.gz linux-bundle/*.AppImage > checksums.txt
           cat checksums.txt
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3.0.2
         with:
+          tag_name: ${{ env.VERSION }}
+          name: ${{ env.VERSION }}
           files: |
-            linux-bundle/*.AppImage
+            win64-bundle/*.zip
             linux-bundle/*.tar.gz
+            linux-bundle/*.AppImage
             checksums.txt
           generate_release_notes: true
 
@@ -55,15 +118,14 @@ jobs:
           HASH=$(sha256sum linux-bundle/*.tar.gz | cut -d' ' -f1 | head -1)
           echo "hash=${HASH:-placeholder}" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
 
       - name: Update checkupdate file
         run: |
-          VERSION="${{ github.ref_name }}"
-          VERSION="${VERSION#v}"
+          V="${VERSION#v}"
           printf '%s\n' \
             "# Mangopret Update Check" \
-            "LAST_VERSION = \"${VERSION}\"" \
+            "LAST_VERSION = \"${V}\"" \
             "VERSION_HASH = \"${{ steps.hash.outputs.hash }}\"" \
             > checkupdate
           git config user.name "github-actions[bot]"
@@ -72,6 +134,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "Update checkupdate to v${VERSION}"
+            git commit -m "Update checkupdate to v${V}"
             git push
           fi

@@ -44,7 +44,7 @@ chmod +x "${APP_DIR}/AppRun"
 wget -q -O appimagetool "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-${ARCH}.AppImage"
 chmod +x appimagetool
 
-# Build AppImage
-ARCH="${ARCH}" ./appimagetool --no-appstream "${APP_DIR}" "${APP}-${VERSION}-${ARCH}.AppImage"
+# Build AppImage (APPIMAGE_EXTRACT_AND_RUN=1 avoids FUSE in CI)
+ARCH="${ARCH}" APPIMAGE_EXTRACT_AND_RUN=1 ./appimagetool --no-appstream "${APP_DIR}" "${APP}-${VERSION}-${ARCH}.AppImage"
 
 echo "Done: ${APP}-${VERSION}-${ARCH}.AppImage"
