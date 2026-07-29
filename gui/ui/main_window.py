@@ -99,7 +99,6 @@ class MainWindow(QMainWindow):
         )
         self.main_tab.set_strategies([(name, sid) for name, sid in self.strategy_list])
         self.main_tab.set_strategies_dict(self.strategies)
-        self._validate_strategies()
         self.main_tab.start_requested.connect(self._start_strategy)
         self.main_tab.stop_requested.connect(self._stop_strategy)
         self.main_tab.ipset_changed.connect(self._on_ipset)
@@ -114,6 +113,7 @@ class MainWindow(QMainWindow):
 
         log_file = str(self.platform.config_dir / "gui.log") if self.platform else ""
         self.log_tab = LogTab(log_file=log_file)
+        self._validate_strategies()
 
         self.tabs.addTab(self.main_tab, "  Main  ")
         self.tabs.addTab(self.lists_tab, "  Lists  ")
