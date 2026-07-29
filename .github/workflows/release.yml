@@ -50,8 +50,9 @@ jobs:
         run: |
           $V = "$env:VERSION"
           $dist = "mangopret-${V}-win64"
-          New-Item -ItemType Directory -Path $dist -Force
-          Copy-Item "$env:PYTHON_DIR\*" "$dist\python\" -Recurse -Force
+          New-Item -ItemType Directory -Force "$dist"
+          New-Item -ItemType Directory -Force "$dist\python"
+          robocopy "$env:PYTHON_DIR" "$dist\python" /E /NP /NFL /NDL > $null
           Copy-Item "gui" "$dist\" -Recurse -Force
           Copy-Item "lists" "$dist\" -Recurse -Force
           Copy-Item "bin" "$dist\" -Recurse -Force
