@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QMessageBox,
     QPushButton,
     QRadioButton,
@@ -145,12 +146,60 @@ class MainTab(QWidget):
         group = QGroupBox("Strategy")
         g_layout = QVBoxLayout(group)
 
+        self._all_strategies: list[str] = []
+
+        search_row = QHBoxLayout()
+        search_row.addWidget(QLabel("Search:"))
+        self.strategy_search = QLineEdit()
+        self.strategy_search.setPlaceholderText("type to filter...")
+        self.strategy_search.textChanged.connect(self._filter_strategies)
+        search_row.addWidget(self.strategy_search)
+        g_layout.addLayout(search_row)
+
         row = QHBoxLayout()
         row.addWidget(QLabel("Select:"))
         self.strategy_combo = QComboBox()
         self.strategy_combo.setMinimumWidth(200)
         row.addWidget(self.strategy_combo, 1)
         g_layout.addLayout(row)
+
+        ver_row = QHBoxLayout()
+        ver_row.addWidget(QLabel("Zapret version:"))
+        self.zapret_version_combo = QComboBox()
+        self.zapret_version_combo.addItem("zapret1 (nfqws)", "1")
+        self.zapret_version_combo.addItem("zapret2 (nfqws2)", "2")
+        self.zapret_version_combo.currentIndexChanged.connect(
+            self._on_zapret_version_changed
+        )
+        current_ver = self.config.get("zapret_version", "1") if self.config else "1"
+        idx = self.zapret_version_combo.findData(current_ver)
+        if idx >= 0:
+            self.zapret_version_combo.setCurrentIndex(idx)
+        ver_row.addWidget(self.zapret_version_combo)
+        ver_row.addStretch()
+        g_layout.addLayout(ver_row)
+
+        opts_row = QHBoxLayout()
+        self.auto_hostlist_cb = QPushButton("Auto-Hostlist")
+        self.auto_hostlist_cb.setCheckable(True)
+        self.auto_hostlist_cb.setChecked(
+            self.config.get("auto_hostlist", False) if self.config else False
+        )
+        self.auto_hostlist_cb.clicked.connect(self._on_auto_hostlist)
+        self.auto_hostlist_cb.setObjectName("secondaryBtn")
+        opts_row.addWidget(self.auto_hostlist_cb)
+
+        self.ipcache_cb = QPushButton("IP Cache")
+        self.ipcache_cb.setCheckable(True)
+        self.ipcache_cb.setChecked(
+            self.config.get("ipcache", False) if self.config else False
+        )
+        self.ipcache_cb.clicked.connect(self._on_ipcache)
+        self.ipcache_cb.setObjectName("secondaryBtn")
+        opts_row.addWidget(self.ipcache_cb)
+
+        opts_row.addStretch()
+        g_layout.addLayout(opts_row)
 
         self.description_label = QLabel("")
         self.description_label.setWordWrap(True)
@@ -250,13 +299,20 @@ class MainTab(QWidget):
         layout.addWidget(group)
 
     def set_strategies(self, strategies: list, current: str = ""):
+        self._all_strategies = [name for name, _ in strategies]
         self.strategy_combo.clear()
-        for name, _ in strategies:
+        for name in self._all_strategies:
             self.strategy_combo.addItem(name)
         if current:
             idx = self.strategy_combo.findText(current)
             if idx >= 0:
                 self.strategy_combo.setCurrentIndex(idx)
+
+    def _filter_strategies(self, text: str):
+        self.strategy_combo.clear()
+        for name in self._all_strategies:
+            if text.lower() in name.lower():
+                self.strategy_combo.addItem(name)
 
     def get_selected_strategy(self) -> str:
         return self.strategy_combo.currentText()
@@ -312,6 +368,24 @@ class MainTab(QWidget):
         if btn:
             self.ipset_changed.emit(btn.property("ipset_value"))
 
+    def _on_zapret_version_changed(self, idx):
+        ver = self.zapret_version_combo.itemData(idx)
+        if self.config and ver:
+            self.config.set("zapret_version", ver)
+
+    def _on_auto_hostlist(self):
+        val = self.auto_hostlist_cb.isChecked()
+        if self.config:
+            self.config.set("auto_hostlist", val)
+
+    def _on_ipcache(self):
+        val = self.ipcache_cb.isChecked()
+        if self.config:
+            self.config.set("ipcache", val)
+
+    def get_zapret_version(self) -> str:
+        return str(self.zapret_version_combo.currentData())
+
     def _get_active_strategy(self):
         name = self.get_selected_strategy()
         if name and name in self._strategies:
@@ -325,7 +399,8 @@ class MainTab(QWidget):
         if not strategy:
             QMessageBox.warning(self, "Error", "Select a strategy first")
             return
-        ok = self.platform.create_systemd_service(strategy, name)
+        zapver = self.get_zapret_version()
+        ok = self.platform.create_systemd_service(strategy, name, zapret_version=zapver)
         if ok:
             self.diag_text.append(f"Service installed/updated: {name}")
             self.log_signal.emit(f"Service installed/updated: {name}")
@@ -435,7 +510,7 @@ class MainTab(QWidget):
             if latest != current:
                 self.diag_text.append("UPDATE AVAILABLE")
                 self.log_signal.emit(
-                    "UPDATE AVAILABLE — Download at https://github.com/Flowseal/mangopret/releases"
+                    "UPDATE AVAILABLE — Download at https://github.com/AnythingDevelopmentTeam/Mangopret/releases"
                 )
         else:
             self.diag_text.append("Mangopret: update check failed")

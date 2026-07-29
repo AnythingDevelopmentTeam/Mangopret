@@ -1,6 +1,8 @@
 # Mangopret — AI Agent Guide
 
-This is the **unified branch** (merged main + mangopretwin). Cross-platform (Linux + Windows) GUI/CLI manager for [zapret](https://github.com/bol-van/zapret), a DPI (Deep Packet Inspection) bypass tool. PyQt6 GUI, systemd service management, strategy selection, IP/domain list editing, automated zapret installation.
+This is the **devel** branch (2.3.0). Cross-platform (Linux + Windows) GUI/CLI manager for [zapret](https://github.com/bol-van/zapret) / [zapret2](https://github.com/bol-van/zapret2), a DPI (Deep Packet Inspection) bypass tool. PyQt6 GUI, systemd service management, strategy selection, IP/domain list editing, automated zapret installation.
+
+**Zapret2 Transition**: This branch adds initial support for [bol-van/zapret2](https://github.com/bol-van/zapret2) (v1.0.3+). The new `nfqws2` daemon uses Lua-based strategies instead of the fixed `--dpi-desync` flags. Not all strategies are converted yet.
 
 ## Quick Start
 
@@ -81,9 +83,9 @@ Mutual exclusion: starting a strategy from GUI kills the service first; starting
 |------|---------|
 | `gui/main.py` | CLI entry point. Subcommands: install, uninstall, start, stop, fix, status, strategies, update, service, lists, diagnostics, convert |
 | `gui/main_gui.py` | GUI entry point. Creates QApplication, applies DARK_THEME, instantiates MainWindow |
-| `gui/core/platform.py` | OS abstraction: install zapret, start/stop processes, manage systemd/sc services, iptables, journal logs, desktop entries |
+| `gui/core/platform.py` | OS abstraction: install zapret (zapret1/zapret2), start/stop processes, manage systemd/sc services, iptables, journal logs, desktop entries |
 | `gui/core/strategy.py` | Strategy/StrategyRule dataclasses, StrategyParser (JSON + .bat), `build_command()` |
-| `gui/core/config.py` | Config class: JSON persistence, ipset mode toggling (swaps files with backups) |
+| `gui/core/config.py` | Config class: JSON persistence, ipset mode toggling (swaps files with backups), `zapret_version` key |
 | `gui/core/lists.py` | ListManager: list CRUD, ipset/hosts update from GitHub, diagnostics |
 | `gui/ui/main_window.py` | MainWindow: orchestrates tabs/tray, strategy start/stop with safety checks, status polling (5s timer) |
 | `gui/ui/tray.py` | SystemTray: Strategies submenu, Show/Start/Stop/Fix Network/Quit, auto-start checkbox |
@@ -146,6 +148,36 @@ Only use OUTPUT chain for iptables rules. FORWARD is for routed traffic and dang
 - `auto_start`: bool, auto-start strategy on GUI launch
 - `minimize_to_tray`: bool
 
+## Zapret2 Transition
+
+zapret2 (bol-van/zapret2) is a complete rewrite of zapret with Lua-based strategies.
+
+### Key Differences
+
+| Aspect | zapret1 (nfqws) | zapret2 (nfqws2) |
+|--------|-----------------|-------------------|
+| Binary | `nfqws` / `winws.exe` | `nfqws2` / `winws2.exe` |
+| Strategy | `--dpi-desync=fake,multisplit,...` | `--lua-desync=fake:blob=...:param=value` |
+| Install dir | `/opt/zapret` | `/opt/zapret2` |
+| Init scripts | `init.d/sysv/zapret` | `init.d/sysv/zapret` (similar) |
+| Lua libs | — | `lua/zapret-lib.lua`, `lua/zapret-antidpi.lua` |
+| Config file | `/opt/zapret/config` (NFQWS_OPT) | CLI params only |
+
+### Status
+
+- [x] Binary resolution for nfqws2
+- [x] Install from zapret2 GitHub releases
+- [x] Config option `zapret_version` ("1" or "2")
+- [ ] Full strategy parsing for zapret2 format
+- [ ] Systemd service for nfqws2
+- [ ] Windows service for winws2
+- [ ] Strategy conversion tool (zapret1 → zapret2)
+- [ ] All 27 strategies converted to Lua format
+
+### Config
+
+Add `"zapret_version": "2"` to `~/.config/mangopret/config.json` to enable zapret2 mode.
+
 ## Running Tests
 
 ```bash
@@ -182,6 +214,8 @@ Produces `.zip` and `.tar.gz` archives with SHA256 checksums.
 
 ## Dependencies
 
-- **Linux**: Python 3, PyQt6 (auto-installed by run_gui.sh), iptables, root access
+- **Linux**: Python 3, PyQt6 (auto-installed by run_gui.sh), iptables or nftables, root access
 - **Windows**: Python 3 (bundled or system), PyQt6, WinDivert (included in bin/)
+- **zapret1**: bol-van/zapret (v72.13)
+- **zapret2**: bol-van/zapret2 (v1.0.3+)
 - See `pyproject.toml` for dependency declarations, `requirements.txt` for pinned versions

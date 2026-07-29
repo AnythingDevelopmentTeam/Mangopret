@@ -24,7 +24,10 @@
       ],
       "dpi-desync": "fake",
       "dpi-desync-repeats": "11",
-      "dpi-desync-fake-quic": "{bin}/quic_initial_www_google_com.bin"
+      "dpi-desync-fake-quic": "{bin}/quic_initial_www_google_com.bin",
+      "lua_desync": [
+        "fake:quic={bin}/quic_initial_www_google_com.bin:repeats=11"
+      ]
     },
     {
       "name": "UDP 19294-19344,50000-50100",
@@ -33,7 +36,10 @@
       "dpi-desync": "fake",
       "dpi-desync-fake-discord": "{bin}/ACTIVE_DISCORD_UDP.bin",
       "dpi-desync-fake-stun": "{bin}/ACTIVE_DISCORD_UDP.bin",
-      "dpi-desync-repeats": "6"
+      "dpi-desync-repeats": "6",
+      "lua_desync": [
+        "fake:discord={bin}/ACTIVE_DISCORD_UDP.bin:stun={bin}/ACTIVE_DISCORD_UDP.bin:repeats=6"
+      ]
     },
     {
       "name": "TCP 2053,2083,2087,2096,8443",
@@ -45,7 +51,11 @@
       "dpi-desync-fooling": "ts",
       "dpi-desync-repeats": "8",
       "dpi-desync-split-seqovl-pattern": "{bin}/tls_clienthello_www_google_com.bin",
-      "dpi-desync-fake-tls-mod": "rnd,dupsid,sni=www.google.com"
+      "dpi-desync-fake-tls-mod": "rnd,dupsid,sni=www.google.com",
+      "lua_desync": [
+        "fake:tcp_ts_up:tls_rnd:tls_dupsid:sni=www.google.com:repeats=8",
+        "multisplit:pos=1:seqovl=681:pattern={bin}/tls_clienthello_www_google_com.bin:repeats=8"
+      ]
     },
     {
       "name": "TCP 443",
@@ -58,7 +68,11 @@
       "dpi-desync-fooling": "ts",
       "dpi-desync-repeats": "8",
       "dpi-desync-split-seqovl-pattern": "{bin}/tls_clienthello_www_google_com.bin",
-      "dpi-desync-fake-tls-mod": "rnd,dupsid,sni=www.google.com"
+      "dpi-desync-fake-tls-mod": "rnd,dupsid,sni=www.google.com",
+      "lua_desync": [
+        "fake:tcp_ts_up:tls_rnd:tls_dupsid:sni=www.google.com:repeats=8",
+        "multisplit:pos=1:seqovl=681:pattern={bin}/tls_clienthello_www_google_com.bin:repeats=8"
+      ]
     },
     {
       "name": "TCP 80,443",
@@ -82,7 +96,11 @@
       "dpi-desync-repeats": "8",
       "dpi-desync-split-seqovl-pattern": "{bin}/tls_clienthello_www_google_com.bin",
       "dpi-desync-fake-tls-mod": "rnd,dupsid,sni=www.google.com",
-      "dpi-desync-fake-http": "{bin}/tls_clienthello_max_ru.bin"
+      "dpi-desync-fake-http": "{bin}/tls_clienthello_max_ru.bin",
+      "lua_desync": [
+        "fake:tcp_ts_up:tls_rnd:tls_dupsid:sni=www.google.com:http={bin}/tls_clienthello_max_ru.bin:repeats=8",
+        "multisplit:pos=1:seqovl=681:pattern={bin}/tls_clienthello_www_google_com.bin:repeats=8"
+      ]
     },
     {
       "name": "IPSet UDP 443",
@@ -98,7 +116,10 @@
       ],
       "dpi-desync": "fake",
       "dpi-desync-repeats": "11",
-      "dpi-desync-fake-quic": "{bin}/quic_initial_www_google_com.bin"
+      "dpi-desync-fake-quic": "{bin}/quic_initial_www_google_com.bin",
+      "lua_desync": [
+        "fake:quic={bin}/quic_initial_www_google_com.bin:repeats=11"
+      ]
     },
     {
       "name": "IPSet TCP 80,443,8443",
@@ -119,7 +140,11 @@
       "dpi-desync-repeats": "8",
       "dpi-desync-split-seqovl-pattern": "{bin}/tls_clienthello_www_google_com.bin",
       "dpi-desync-fake-tls-mod": "rnd,dupsid,sni=www.google.com",
-      "dpi-desync-fake-http": "{bin}/tls_clienthello_max_ru.bin"
+      "dpi-desync-fake-http": "{bin}/tls_clienthello_max_ru.bin",
+      "lua_desync": [
+        "fake:tcp_ts_up:tls_rnd:tls_dupsid:sni=www.google.com:http={bin}/tls_clienthello_max_ru.bin:repeats=8",
+        "multisplit:pos=1:seqovl=681:pattern={bin}/tls_clienthello_www_google_com.bin:repeats=8"
+      ]
     }
   ]
 }

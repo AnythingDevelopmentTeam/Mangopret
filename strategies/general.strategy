@@ -24,7 +24,10 @@
       ],
       "dpi-desync": "fake",
       "dpi-desync-repeats": "6",
-      "dpi-desync-fake-quic": "{bin}/quic_initial_www_google_com.bin"
+      "dpi-desync-fake-quic": "{bin}/quic_initial_www_google_com.bin",
+      "lua_desync": [
+        "fake:quic={bin}/quic_initial_www_google_com.bin:repeats=6"
+      ]
     },
     {
       "name": "UDP 19294-19344,50000-50100",
@@ -33,7 +36,10 @@
       "dpi-desync": "fake",
       "dpi-desync-fake-discord": "{bin}/ACTIVE_DISCORD_UDP.bin",
       "dpi-desync-fake-stun": "{bin}/ACTIVE_DISCORD_UDP.bin",
-      "dpi-desync-repeats": "6"
+      "dpi-desync-repeats": "6",
+      "lua_desync": [
+        "fake:discord={bin}/ACTIVE_DISCORD_UDP.bin:stun={bin}/ACTIVE_DISCORD_UDP.bin:repeats=6"
+      ]
     },
     {
       "name": "TCP 2053,2083,2087,2096,8443",
@@ -42,7 +48,10 @@
       "dpi-desync": "multisplit",
       "dpi-desync-split-seqovl": "681",
       "dpi-desync-split-pos": "1",
-      "dpi-desync-split-seqovl-pattern": "{bin}/tls_clienthello_www_google_com.bin"
+      "dpi-desync-split-seqovl-pattern": "{bin}/tls_clienthello_www_google_com.bin",
+      "lua_desync": [
+        "multisplit:pos=1:seqovl=681:pattern={bin}/tls_clienthello_www_google_com.bin"
+      ]
     },
     {
       "name": "TCP 443",
@@ -52,7 +61,10 @@
       "dpi-desync": "multisplit",
       "dpi-desync-split-seqovl": "681",
       "dpi-desync-split-pos": "1",
-      "dpi-desync-split-seqovl-pattern": "{bin}/tls_clienthello_www_google_com.bin"
+      "dpi-desync-split-seqovl-pattern": "{bin}/tls_clienthello_www_google_com.bin",
+      "lua_desync": [
+        "multisplit:pos=1:seqovl=681:pattern={bin}/tls_clienthello_www_google_com.bin"
+      ]
     },
     {
       "name": "TCP 80,443",
@@ -72,7 +84,10 @@
       "dpi-desync": "multisplit",
       "dpi-desync-split-seqovl": "568",
       "dpi-desync-split-pos": "1",
-      "dpi-desync-split-seqovl-pattern": "{bin}/tls_clienthello_4pda_to.bin"
+      "dpi-desync-split-seqovl-pattern": "{bin}/tls_clienthello_4pda_to.bin",
+      "lua_desync": [
+        "multisplit:pos=1:seqovl=568:pattern={bin}/tls_clienthello_4pda_to.bin"
+      ]
     },
     {
       "name": "IPSet UDP 443",
@@ -88,7 +103,10 @@
       ],
       "dpi-desync": "fake",
       "dpi-desync-repeats": "6",
-      "dpi-desync-fake-quic": "{bin}/quic_initial_www_google_com.bin"
+      "dpi-desync-fake-quic": "{bin}/quic_initial_www_google_com.bin",
+      "lua_desync": [
+        "fake:quic={bin}/quic_initial_www_google_com.bin:repeats=6"
+      ]
     },
     {
       "name": "IPSet TCP 80,443,8443",
@@ -105,7 +123,10 @@
       "dpi-desync": "multisplit",
       "dpi-desync-split-seqovl": "568",
       "dpi-desync-split-pos": "1",
-      "dpi-desync-split-seqovl-pattern": "{bin}/tls_clienthello_4pda_to.bin"
+      "dpi-desync-split-seqovl-pattern": "{bin}/tls_clienthello_4pda_to.bin",
+      "lua_desync": [
+        "multisplit:pos=1:seqovl=568:pattern={bin}/tls_clienthello_4pda_to.bin"
+      ]
     }
   ]
 }

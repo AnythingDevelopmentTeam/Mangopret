@@ -85,6 +85,12 @@ class ListsTab(QWidget):
 
         layout.addWidget(splitter, 1)
 
+        btn_validate = QPushButton("Validate Lists")
+        btn_validate.setObjectName("secondaryBtn")
+        btn_validate.setMinimumHeight(28)
+        btn_validate.clicked.connect(self._validate_lists)
+        layout.addWidget(btn_validate)
+
     def _load_file_list(self):
         self.file_list.clear()
         for name in self.list_manager.get_list_files():
@@ -128,6 +134,22 @@ class ListsTab(QWidget):
         cursor.removeSelectedText()
         cursor.deleteChar()
         self.editor.setTextCursor(cursor)
+
+    def _validate_lists(self):
+        if not self.list_manager:
+            return
+        has_errors = False
+        for fname in self.list_manager.get_list_files():
+            errors = self.list_manager.validate_list_file(fname)
+            if errors:
+                has_errors = True
+                self.log_signal.emit(f"Validation: {fname}")
+                for e in errors:
+                    self.log_signal.emit(e)
+        if not has_errors:
+            self.log_signal.emit("All list files validated OK")
+        else:
+            self.log_signal.emit("Some list files have validation errors")
 
     def refresh(self):
         self._load_file_list()

@@ -46,6 +46,57 @@ class ListManager:
     def get_ipset_list_files(self) -> list[str]:
         return [f for f in self.get_list_files() if f.startswith("ipset-")]
 
+    def validate_domain(self, domain: str) -> bool:
+        import re
+
+        return bool(
+            re.match(
+                r"^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$",
+                domain,
+            )
+        )
+
+    def validate_ip(self, ip: str) -> bool:
+        import ipaddress
+
+        try:
+            ipaddress.ip_address(ip)
+            return True
+        except ValueError:
+            return False
+
+    def validate_cidr(self, cidr: str) -> bool:
+        import ipaddress
+
+        try:
+            ipaddress.ip_network(cidr, strict=False)
+            return True
+        except ValueError:
+            return False
+
+    def validate_list_file(self, filename: str) -> list[str]:
+        errors: list[str] = []
+        content = self.read_list(filename)
+        if filename.startswith("list-"):
+            for i, line in enumerate(content.splitlines(), 1):
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if not self.validate_domain(line):
+                    errors.append(f"  Line {i}: invalid domain: {line}")
+        elif filename.startswith("ipset-"):
+            for i, line in enumerate(content.splitlines(), 1):
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "/" in line:
+                    if not self.validate_cidr(line):
+                        errors.append(f"  Line {i}: invalid CIDR: {line}")
+                else:
+                    if not self.validate_ip(line):
+                        errors.append(f"  Line {i}: invalid IP: {line}")
+        return errors
+
     def read_list(self, filename: str) -> str:
         path = self.lists_dir / filename
         if path.exists():

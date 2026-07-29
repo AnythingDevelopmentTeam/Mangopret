@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
 from .tabs.lists_tab import ListsTab
 from .tabs.log_tab import LogTab
 from .tabs.main_tab import MainTab
+from .tray import SystemTray
 
 
 class MainWindow(QMainWindow):
@@ -98,6 +99,7 @@ class MainWindow(QMainWindow):
         )
         self.main_tab.set_strategies([(name, sid) for name, sid in self.strategy_list])
         self.main_tab.set_strategies_dict(self.strategies)
+        self._validate_strategies()
         self.main_tab.start_requested.connect(self._start_strategy)
         self.main_tab.stop_requested.connect(self._stop_strategy)
         self.main_tab.ipset_changed.connect(self._on_ipset)
@@ -110,7 +112,8 @@ class MainWindow(QMainWindow):
         self.lists_tab = ListsTab(self.list_manager)
         self.lists_tab.log_signal.connect(self._log)
 
-        self.log_tab = LogTab()
+        log_file = str(self.platform.config_dir / "gui.log") if self.platform else ""
+        self.log_tab = LogTab(log_file=log_file)
 
         self.tabs.addTab(self.main_tab, "  Main  ")
         self.tabs.addTab(self.lists_tab, "  Lists  ")
@@ -120,12 +123,46 @@ class MainWindow(QMainWindow):
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("Ready")
 
+        self._setup_tray()
+
         if self.strategy_list:
             self.main_tab.set_description(
                 self.strategies[self.strategy_list[0][0]].description
             )
         else:
             self.main_tab.set_description("No strategies found")
+
+    def _setup_tray(self):
+        self.tray = SystemTray(self)
+        self.tray.show_requested.connect(self._show_window)
+        self.tray.start_requested.connect(self._start_strategy)
+        self.tray.stop_requested.connect(self._stop_strategy)
+        self.tray.quit_requested.connect(self._quit)
+        self.tray.set_strategies(
+            [(name, sid) for name, sid in self.strategy_list],
+            lambda sid: None,
+        )
+        minimize = self.config.get("minimize_to_tray", True) if self.config else True
+        if minimize:
+            self.tray.show()
+
+    def _notify(self, title: str, message: str):
+        if hasattr(self, "tray"):
+            self.tray.show_message(title, message)
+        self._log(f"{title}: {message}")
+
+    def _validate_strategies(self):
+        bin_dir = str(self.platform.bin_dir)
+        lists_dir = str(self.platform.lists_dir)
+        has_warnings = False
+        for name, s in self.strategies.items():
+            warnings = s.validate(bin_dir, lists_dir)
+            if warnings:
+                has_warnings = True
+                for w in warnings:
+                    self._log(f"WARN: {name}: {w}")
+        if not has_warnings:
+            self._log("All strategies validated OK")
 
     def _setup_timer(self):
         self._status_timer = QTimer(self)
@@ -178,8 +215,33 @@ class MainWindow(QMainWindow):
 
         self._log(f"Creating service: {name}")
 
+        zapver = self.main_tab.get_zapret_version()
+        auto_hostlist = (
+            self.config.get("auto_hostlist", False) if self.config else False
+        )
+        ipcache = self.config.get("ipcache", False) if self.config else False
+        if zapver == "2" and not self.platform.is_windows:
+            self._log("Validating config with --dry-run...")
+            args_for_dry = strategy.build_command(
+                str(self.platform.binary),
+                str(self.platform.bin_dir),
+                str(self.platform.lists_dir),
+                False,
+                zapret_version="2",
+                auto_hostlist=auto_hostlist,
+                ipcache=ipcache,
+            )
+            ok, msg = self.platform.validate_binary_dry_run(args_for_dry)
+            if not ok:
+                self._log(f"Config validation FAILED: {msg}")
+                self.status_bar.showMessage("Config validation failed")
+                return
+            self._log("Config valid.")
+
         if self.platform.is_linux:
-            ok = self.platform.create_systemd_service(strategy, name)
+            ok = self.platform.create_systemd_service(
+                strategy, name, zapret_version=zapver
+            )
             if not ok:
                 self._log("FAILED to create service")
                 self.status_bar.showMessage("Failed to create service")
@@ -191,11 +253,14 @@ class MainWindow(QMainWindow):
                 self.main_tab.set_active(True, name)
                 self.status_bar.showMessage(f"Active: {name}")
                 self._log(f"Service started: {name}")
+                self._notify("Strategy started", name)
             else:
                 self._log(f"FAILED to start service: {err}")
                 self.status_bar.showMessage("Service start failed")
         else:
-            ok, err = self.platform.service_install(strategy, name)
+            ok, err = self.platform.service_install(
+                strategy, name, zapret_version=zapver
+            )
             if ok:
                 ok2, err2 = self.platform.service_start()
                 if ok2:
@@ -203,6 +268,7 @@ class MainWindow(QMainWindow):
                     self.main_tab.set_active(True, name)
                     self.status_bar.showMessage(f"Active: {name}")
                     self._log(f"Service started: {name}")
+                    self._notify("Strategy started", name)
                 else:
                     self._log(f"FAILED to start service: {err2}")
                     self.status_bar.showMessage("Service start failed")
@@ -236,6 +302,7 @@ class MainWindow(QMainWindow):
         self.main_tab.set_active(False)
         self.status_bar.showMessage("Stopped")
         self._log("Service stopped")
+        self._notify("Strategy stopped", "")
         QTimer.singleShot(1000, self._refresh_status)
 
     def _refresh_status(self):
@@ -298,6 +365,16 @@ class MainWindow(QMainWindow):
         self.showNormal()
         self.raise_()
         self.activateWindow()
+
+    def _show_progress(self, title: str, message: str) -> QMessageBox:
+        dlg = QMessageBox(self)
+        dlg.setWindowTitle(title)
+        dlg.setText(message)
+        dlg.setStandardButtons(QMessageBox.StandardButton.NoButton)
+        dlg.setModal(True)
+        dlg.show()
+        QApplication.processEvents()
+        return dlg
 
     def _quit(self):
         QApplication.instance().quit()

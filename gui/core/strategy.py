@@ -176,7 +176,20 @@ class Strategy:
         bin_dir: str,
         lists_dir: str,
         is_windows: bool = True,
+        zapret_version: str = "1",
+        auto_hostlist: bool = False,
+        ipcache: bool = False,
     ) -> list[str]:
+        if zapret_version == "2":
+            return self.build_command_zapret2(
+                binary_path,
+                bin_dir,
+                lists_dir,
+                is_windows,
+                auto_hostlist=auto_hostlist,
+                ipcache=ipcache,
+            )
+
         cmd: list[str] = [str(binary_path)]
 
         if is_windows:
@@ -216,6 +229,238 @@ class Strategy:
                     resolved.append(self._resolve_path(arg, bin_dir, lists_dir))
 
             if skip:
+                continue
+
+            cmd.extend(resolved)
+            if i < len(self.rules) - 1:
+                cmd.append("--new")
+
+        return cmd
+
+    def convert_to_zapret2(self) -> list[dict[str, Any]]:
+        """Convert zapret1 dpi-desync params to zapret2 lua_desync format."""
+        ZAPRET2_FOOLING: dict[str, str] = {
+            "md5sig": "tcp_md5",
+            "badseq": "tcp_seq=-66000",
+            "ts": "tcp_ts_up",
+            "datanoack": "tcp_flags_unset=ack",
+        }
+
+        def _build_lua_desync(rule: dict[str, Any]) -> list[str]:
+            desync = str(rule.get("dpi-desync", ""))
+            if not desync:
+                return []
+
+            methods = [m.strip() for m in desync.split(",")]
+            repeats = rule.get("dpi-desync-repeats", "")
+            fooling = str(rule.get("dpi-desync-fooling", ""))
+            tls_mod = str(rule.get("dpi-desync-fake-tls-mod", ""))
+            result: list[str] = []
+
+            for method in methods:
+                parts = [method]
+
+                if method in ("fake", "hostfakesplit"):
+                    fparams = []
+                    for f in fooling.split(","):
+                        f = f.strip()
+                        if f in ZAPRET2_FOOLING:
+                            fparams.append(ZAPRET2_FOOLING[f])
+                    if fparams:
+                        parts.append(":".join(fparams))
+
+                if method == "fake" and tls_mod:
+                    mods = []
+                    for m in tls_mod.split(","):
+                        m = m.strip()
+                        if m.startswith("sni="):
+                            mods.append(m)
+                        elif m == "rnd":
+                            mods.append("tls_rnd")
+                        elif m == "dupsid":
+                            mods.append("tls_dupsid")
+                    if mods:
+                        parts.extend(mods)
+
+                if method in ("multisplit", "fakedsplit", "multidisorder"):
+                    split_pos = rule.get("dpi-desync-split-pos", "")
+                    if split_pos:
+                        parts.append(f"pos={split_pos}")
+                    seqovl = rule.get("dpi-desync-split-seqovl", "")
+                    if seqovl:
+                        parts.append(f"seqovl={seqovl}")
+                    pattern = rule.get("dpi-desync-split-seqovl-pattern", "")
+                    if pattern:
+                        parts.append(f"pattern={pattern}")
+
+                if method == "fake":
+                    for fake_key in ("quic", "tls", "discord", "stun", "http"):
+                        fk = f"dpi-desync-fake-{fake_key}"
+                        if fk in rule:
+                            val = rule[fk]
+                            if isinstance(val, list):
+                                val = "&".join(str(x) for x in val)
+                            parts.append(f"{fake_key}={val}")
+
+                if (
+                    method
+                    in ("fake", "multisplit", "fakedsplit", "multidisorder", "syndata")
+                    and repeats
+                ):
+                    try:
+                        r = int(repeats)
+                        if r > 1:
+                            parts.append(f"repeats={repeats}")
+                    except ValueError:
+                        pass
+
+                result.append(":".join(parts))
+
+            return result
+
+        new_rules: list[dict[str, Any]] = []
+        for rule_orig in self.rules:
+            r = dict(rule_orig.params)
+            lua_desync = _build_lua_desync(r)
+            if lua_desync:
+                r["lua_desync"] = lua_desync
+            new_rules.append(StrategyRule(name=rule_orig.name, params=r))
+        return new_rules
+
+    def validate(self, bin_dir: str, lists_dir: str) -> list[str]:
+        """Validate strategy: check all referenced files exist. Returns list of warnings."""
+        warnings: list[str] = []
+        for rule in self.rules:
+            for key, value in rule.params.items():
+                if isinstance(value, str) and "{bin}" in value:
+                    resolved = self._resolve_path(value, bin_dir, lists_dir)
+                    if not os.path.isfile(resolved):
+                        warnings.append(
+                            f"'{rule.name}': {key} -> file not found: {resolved}"
+                        )
+                elif isinstance(value, list):
+                    for item in value:
+                        if isinstance(item, str) and "{bin}" in item:
+                            resolved = self._resolve_path(item, bin_dir, lists_dir)
+                            if not os.path.isfile(resolved):
+                                warnings.append(
+                                    f"'{rule.name}': {key} -> file not found: {resolved}"
+                                )
+        return warnings
+
+    def get_blob_paths(self, bin_dir: str, lists_dir: str) -> set[str]:
+        blobs: set[str] = set()
+        for rule in self.rules:
+            lua_desync = rule.params.get("lua_desync", [])
+            if isinstance(lua_desync, str):
+                lua_desync = [lua_desync]
+            for ds in lua_desync:
+                for part in ds.split(":"):
+                    if "=" in part:
+                        k, v = part.split("=", 1)
+                        if k in ("quic", "tls", "discord", "stun", "http", "pattern"):
+                            resolved = self._resolve_path(v, bin_dir, lists_dir)
+                            if os.path.isfile(resolved):
+                                blobs.add(v)
+        return blobs
+
+    def build_command_zapret2(
+        self,
+        binary_path: str,
+        bin_dir: str,
+        lists_dir: str,
+        is_windows: bool = True,
+        auto_hostlist: bool = False,
+        ipcache: bool = False,
+    ) -> list[str]:
+        cmd: list[str] = [str(binary_path)]
+
+        lua_dir = Path(binary_path).parent.parent / "lua"
+        lua_init_libs: list[str] = ["zapret-lib.lua", "zapret-antidpi.lua"]
+        auto_lua = lua_dir / "zapret-auto.lua"
+        if auto_lua.exists():
+            lua_init_libs.append("zapret-auto.lua")
+        for lib in lua_init_libs:
+            lua_path = lua_dir / lib
+            if lua_path.exists():
+                cmd.append(f"--lua-init=@{lua_path}")
+
+        for blob_path in sorted(self.get_blob_paths(bin_dir, lists_dir)):
+            resolved = self._resolve_path(blob_path, bin_dir, lists_dir)
+            if os.path.isfile(resolved):
+                name = Path(resolved).stem
+                cmd.append(f"--blob={name}:@{resolved}")
+
+        cmd.append("--out-range=-d10")
+
+        if auto_hostlist:
+            auto_path = Path(lists_dir) / "hostlist-auto.txt"
+            cmd.append(f"--hostlist-auto={auto_path}")
+        if ipcache:
+            cmd.append("--ipcache-hostname")
+
+        if is_windows:
+            raw_tcp = self.wf_tcp.replace("{game_filter_tcp}", "")
+            raw_udp = self.wf_udp.replace("{game_filter_udp}", "")
+            tcp_parts = [p.strip() for p in raw_tcp.split(",") if p.strip()]
+            udp_parts = [p.strip() for p in raw_udp.split(",") if p.strip()]
+            if tcp_parts:
+                cmd.append(f"--wf-tcp-out={','.join(tcp_parts)}")
+            if udp_parts:
+                cmd.append(f"--wf-raw-part=udp.DstPort={'|'.join(udp_parts)}")
+
+        for i, rule in enumerate(self.rules):
+            rule_args = rule.to_args()
+            lua_desync = rule.params.get("lua_desync", [])
+            if isinstance(lua_desync, str):
+                lua_desync = [lua_desync]
+
+            resolved: list[str] = []
+            for arg in rule_args:
+                if arg.startswith("--lua-desync"):
+                    continue
+                keyval = arg.split("=", 1)
+                if arg.startswith("--filter-"):
+                    if len(keyval) == 2:
+                        val = self._resolve_path(keyval[1], bin_dir, lists_dir)
+                        if val.strip():
+                            resolved.append(f"{keyval[0]}={val}")
+                    else:
+                        resolved.append(keyval[0])
+                elif arg.startswith(("--hostlist", "--ipset")) and len(keyval) == 2:
+                    val = self._resolve_path(keyval[1], bin_dir, lists_dir)
+                    resolved.append(f"{keyval[0]}={val}")
+
+            filter_tcp = rule.params.get("filter-tcp", "")
+            filter_udp = rule.params.get("filter-udp", "")
+            filter_l7 = rule.params.get("filter-l7", "")
+            pl: list[str] = []
+            if filter_tcp:
+                tcp_ports = [p.strip() for p in str(filter_tcp).split(",")]
+                if any(
+                    p in ("443", "2053", "2083", "2087", "2096", "8443")
+                    for p in tcp_ports
+                ):
+                    pl.append("tls_client_hello")
+                if "80" in tcp_ports:
+                    pl.append("http_req")
+            if filter_udp:
+                udp_ports = [p.strip() for p in str(filter_udp).split(",")]
+                if any("443" in p for p in udp_ports):
+                    pl.append("quic_initial")
+            if filter_l7:
+                for v in str(filter_l7).split(","):
+                    v = v.strip()
+                    if v and v not in pl:
+                        pl.append(v)
+
+            if pl and "--payload" not in cmd:
+                cmd.append(f"--payload={','.join(pl)}")
+
+            for ds in lua_desync:
+                resolved.append(f"--lua-desync={ds}")
+
+            if not resolved:
                 continue
 
             cmd.extend(resolved)
@@ -489,6 +734,39 @@ class StrategyParser:
             tokens.append(current.strip())
 
         return tokens
+
+    @staticmethod
+    def apply_zapret2_conversion(
+        strategy: Strategy, in_place: bool = False
+    ) -> Strategy:
+        """Convert all rules in a strategy to zapret2 format."""
+        new_rules = strategy.convert_to_zapret2()
+        strategy.rules = new_rules
+        return strategy
+
+    @staticmethod
+    def convert_all_to_zapret2(
+        strategies_dir: str, output_dir: str | None = None
+    ) -> list[str]:
+        """Convert all strategies in a directory to zapret2 format."""
+        strat_dir = Path(strategies_dir)
+        if output_dir:
+            out_dir = Path(output_dir)
+            out_dir.mkdir(parents=True, exist_ok=True)
+        else:
+            out_dir = strat_dir
+
+        updated: list[str] = []
+        for f in sorted(strat_dir.glob("*.strategy")):
+            s = StrategyParser._from_json(f)
+            if not s or not s.rules:
+                continue
+            StrategyParser.apply_zapret2_conversion(s)
+            out_path = out_dir / f.name
+            StrategyParser.to_strategy_file(s, str(out_path))
+            updated.append(f.name)
+
+        return updated
 
     @staticmethod
     def to_strategy_file(strategy: Strategy, path: str) -> None:

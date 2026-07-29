@@ -14,7 +14,10 @@
       "hostlist-domains": "steamcommunity.com,steampowered.com,steamgames.com,steamusercontent.com,steamcontent.com",
       "dpi-desync": "fake",
       "dpi-desync-repeats": "11",
-      "dpi-desync-fake-quic": "{bin}/quic_initial_steamcommunity_com.bin"
+      "dpi-desync-fake-quic": "{bin}/quic_initial_steamcommunity_com.bin",
+      "lua_desync": [
+        "fake:quic={bin}/quic_initial_steamcommunity_com.bin:repeats=11"
+      ]
     },
     {
       "name": "UDP 27015-27050 Game Traffic",
@@ -23,7 +26,10 @@
       "dpi-desync": "fake",
       "dpi-desync-fake-unknown-udp": "{bin}/ACTIVE_GAME_UDP.bin",
       "dpi-desync-fake-stun": "{bin}/ACTIVE_GAME_UDP.bin",
-      "dpi-desync-repeats": "4"
+      "dpi-desync-repeats": "4",
+      "lua_desync": [
+        "fake:stun={bin}/ACTIVE_GAME_UDP.bin:repeats=4"
+      ]
     },
     {
       "name": "UDP 19294-19344,50000-50100 Discord",
@@ -32,7 +38,10 @@
       "dpi-desync": "fake",
       "dpi-desync-fake-discord": "{bin}/ACTIVE_DISCORD_UDP.bin",
       "dpi-desync-fake-stun": "{bin}/ACTIVE_DISCORD_UDP.bin",
-      "dpi-desync-repeats": "6"
+      "dpi-desync-repeats": "6",
+      "lua_desync": [
+        "fake:discord={bin}/ACTIVE_DISCORD_UDP.bin:stun={bin}/ACTIVE_DISCORD_UDP.bin:repeats=6"
+      ]
     },
     {
       "name": "TCP 443 Steam",
@@ -41,7 +50,10 @@
       "dpi-desync": "fake",
       "dpi-desync-repeats": "8",
       "dpi-desync-fooling": "ts",
-      "dpi-desync-fake-tls": "{bin}/tls_clienthello_www_google_com.bin"
+      "dpi-desync-fake-tls": "{bin}/tls_clienthello_www_google_com.bin",
+      "lua_desync": [
+        "fake:tcp_ts_up:tls={bin}/tls_clienthello_www_google_com.bin:repeats=8"
+      ]
     },
     {
       "name": "TCP 80,443 General",
@@ -62,7 +74,10 @@
       "dpi-desync-repeats": "6",
       "dpi-desync-fooling": "ts",
       "dpi-desync-fake-tls": "{bin}/tls_clienthello_www_google_com.bin",
-      "dpi-desync-fake-http": "{bin}/tls_clienthello_max_ru.bin"
+      "dpi-desync-fake-http": "{bin}/tls_clienthello_max_ru.bin",
+      "lua_desync": [
+        "fake:tcp_ts_up:tls={bin}/tls_clienthello_www_google_com.bin:http={bin}/tls_clienthello_max_ru.bin:repeats=6"
+      ]
     },
     {
       "name": "IPSet UDP 443",
@@ -78,7 +93,10 @@
       ],
       "dpi-desync": "fake",
       "dpi-desync-repeats": "11",
-      "dpi-desync-fake-quic": "{bin}/quic_initial_www_google_com.bin"
+      "dpi-desync-fake-quic": "{bin}/quic_initial_www_google_com.bin",
+      "lua_desync": [
+        "fake:quic={bin}/quic_initial_www_google_com.bin:repeats=11"
+      ]
     },
     {
       "name": "IPSet TCP 80,443,8443",
@@ -96,7 +114,10 @@
       "dpi-desync-repeats": "6",
       "dpi-desync-fooling": "ts",
       "dpi-desync-fake-tls": "{bin}/tls_clienthello_www_google_com.bin",
-      "dpi-desync-fake-http": "{bin}/tls_clienthello_max_ru.bin"
+      "dpi-desync-fake-http": "{bin}/tls_clienthello_max_ru.bin",
+      "lua_desync": [
+        "fake:tcp_ts_up:tls={bin}/tls_clienthello_www_google_com.bin:http={bin}/tls_clienthello_max_ru.bin:repeats=6"
+      ]
     }
   ]
 }

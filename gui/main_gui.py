@@ -2,6 +2,7 @@
 import os
 import signal
 import sys
+from pathlib import Path
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BASE_DIR = os.path.dirname(SCRIPT_DIR)
@@ -79,14 +80,18 @@ def main() -> None:
     if sys.platform != "win32":
         app.setStyle("fusion")
 
-    platform = PlatformInfo(BASE_DIR)
-    platform.ensure_dirs()
-
     from core.log import set_log_dir
 
-    set_log_dir(str(platform.config_dir))
+    if sys.platform == "win32":
+        base = os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming"))
+    else:
+        base = os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))
+    config_dir = Path(base) / "mangopret"
+    config = Config(str(config_dir))
+    set_log_dir(str(config_dir))
 
-    config = Config(str(platform.config_dir))
+    platform = PlatformInfo(BASE_DIR, zapret_version=config.get("zapret_version", "1"))
+    platform.ensure_dirs()
 
     theme = config.get("theme", "dark")
     if theme in THEMES:

@@ -14,7 +14,10 @@
       "hostlist-domains": "discord.com,discord.gg,discord.media,discordapp.com,discordapp.net",
       "dpi-desync": "fake",
       "dpi-desync-repeats": "15",
-      "dpi-desync-fake-quic": "{bin}/quic_initial_www_google_com.bin"
+      "dpi-desync-fake-quic": "{bin}/quic_initial_www_google_com.bin",
+      "lua_desync": [
+        "fake:quic={bin}/quic_initial_www_google_com.bin:repeats=15"
+      ]
     },
     {
       "name": "UDP 19294-19344 Discord Voice",
@@ -29,7 +32,10 @@
         "{bin}/ACTIVE_DISCORD_UDP.bin",
         "{bin}/ACTIVE_GAME_UDP.bin"
       ],
-      "dpi-desync-repeats": "8"
+      "dpi-desync-repeats": "8",
+      "lua_desync": [
+        "fake:discord={bin}/ACTIVE_DISCORD_UDP.bin&{bin}/ACTIVE_GAME_UDP.bin:repeats=8"
+      ]
     },
     {
       "name": "UDP 50000-50100 Discord Alt",
@@ -42,7 +48,10 @@
       ],
       "dpi-desync-fake-stun": "{bin}/ACTIVE_DISCORD_UDP.bin",
       "dpi-desync-fake-unknown-udp": "{bin}/ACTIVE_GAME_UDP.bin",
-      "dpi-desync-repeats": "8"
+      "dpi-desync-repeats": "8",
+      "lua_desync": [
+        "fake:discord={bin}/ACTIVE_DISCORD_UDP.bin&{bin}/ACTIVE_GAME_UDP.bin:stun={bin}/ACTIVE_DISCORD_UDP.bin:repeats=8"
+      ]
     },
     {
       "name": "TCP 2053,2083,2087,2096,8443 Discord Media",
@@ -51,7 +60,10 @@
       "dpi-desync": "fake",
       "dpi-desync-repeats": "11",
       "dpi-desync-fooling": "ts",
-      "dpi-desync-fake-tls": "{bin}/tls_clienthello_www_google_com.bin"
+      "dpi-desync-fake-tls": "{bin}/tls_clienthello_www_google_com.bin",
+      "lua_desync": [
+        "fake:tcp_ts_up:tls={bin}/tls_clienthello_www_google_com.bin:repeats=11"
+      ]
     },
     {
       "name": "TCP 443 Discord",
@@ -60,7 +72,10 @@
       "dpi-desync": "fake",
       "dpi-desync-repeats": "11",
       "dpi-desync-fooling": "ts",
-      "dpi-desync-fake-tls": "{bin}/tls_clienthello_www_google_com.bin"
+      "dpi-desync-fake-tls": "{bin}/tls_clienthello_www_google_com.bin",
+      "lua_desync": [
+        "fake:tcp_ts_up:tls={bin}/tls_clienthello_www_google_com.bin:repeats=11"
+      ]
     },
     {
       "name": "TCP 80,443 General fallback",
@@ -81,7 +96,10 @@
       "dpi-desync-repeats": "6",
       "dpi-desync-fooling": "ts",
       "dpi-desync-fake-tls": "{bin}/tls_clienthello_www_google_com.bin",
-      "dpi-desync-fake-http": "{bin}/tls_clienthello_max_ru.bin"
+      "dpi-desync-fake-http": "{bin}/tls_clienthello_max_ru.bin",
+      "lua_desync": [
+        "fake:tcp_ts_up:tls={bin}/tls_clienthello_www_google_com.bin:http={bin}/tls_clienthello_max_ru.bin:repeats=6"
+      ]
     },
     {
       "name": "IPSet UDP 443",
@@ -97,7 +115,10 @@
       ],
       "dpi-desync": "fake",
       "dpi-desync-repeats": "11",
-      "dpi-desync-fake-quic": "{bin}/quic_initial_www_google_com.bin"
+      "dpi-desync-fake-quic": "{bin}/quic_initial_www_google_com.bin",
+      "lua_desync": [
+        "fake:quic={bin}/quic_initial_www_google_com.bin:repeats=11"
+      ]
     },
     {
       "name": "IPSet TCP 80,443,8443",
@@ -115,7 +136,10 @@
       "dpi-desync-repeats": "6",
       "dpi-desync-fooling": "ts",
       "dpi-desync-fake-tls": "{bin}/tls_clienthello_www_google_com.bin",
-      "dpi-desync-fake-http": "{bin}/tls_clienthello_max_ru.bin"
+      "dpi-desync-fake-http": "{bin}/tls_clienthello_max_ru.bin",
+      "lua_desync": [
+        "fake:tcp_ts_up:tls={bin}/tls_clienthello_www_google_com.bin:http={bin}/tls_clienthello_max_ru.bin:repeats=6"
+      ]
     }
   ]
 }

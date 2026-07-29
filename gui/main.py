@@ -37,7 +37,9 @@ BANNER = rf"""
 
 
 def get_platform() -> PlatformInfo:
-    return PlatformInfo(BASE_DIR)
+    config = get_config()
+    version = config.get("zapret_version", "1")
+    return PlatformInfo(BASE_DIR, zapret_version=version)
 
 
 def get_config() -> Config:
@@ -109,18 +111,32 @@ def cmd_start(args: argparse.Namespace) -> None:
             p.service_stop()
 
     strategy = strategies[name]
+    zapver = config.get("zapret_version", "1")
+    auto_hostlist = config.get("auto_hostlist", False)
+    ipcache = config.get("ipcache", False)
     args_list = strategy.build_command(
         binary_path=str(p.binary),
         bin_dir=str(p.bin_dir),
         lists_dir=str(p.lists_dir),
         is_windows=p.is_windows,
+        zapret_version=zapver,
+        auto_hostlist=auto_hostlist,
+        ipcache=ipcache,
     )
 
     print(f"Starting: {name}")
+    if zapver == "2" and not p.is_windows:
+        print("Validating config with --dry-run...")
+        ok, msg = p.validate_binary_dry_run(args_list)
+        if not ok:
+            print(f"Config validation FAILED: {msg}")
+            sys.exit(1)
+        print("Config valid.")
+
     if p.is_linux:
         config.set("last_strategy", name)
         print("Writing zapret config and starting service...")
-        ok = p.create_systemd_service(strategy, name)
+        ok = p.create_systemd_service(strategy, name, zapret_version=zapver)
         if not ok:
             print("Failed to write zapret config")
             sys.exit(1)
@@ -242,7 +258,8 @@ def cmd_service(args: argparse.Namespace) -> None:
         strategies = _load_strategies(p)
         if name in strategies:
             strategy = strategies[name]
-            ok, err = p.service_install(strategy, name)
+            zapver = config.get("zapret_version", "1")
+            ok, err = p.service_install(strategy, name, zapret_version=zapver)
             if ok:
                 print(f"Service created for: {name}")
             else:
@@ -318,6 +335,28 @@ def cmd_diagnostics(args: argparse.Namespace) -> None:
     lm = ListManager(str(p.lists_dir), str(p.utils_dir))
     result = lm.run_diagnostics(p.is_windows)
     print(result)
+
+
+def cmd_zapret2(args: argparse.Namespace) -> None:
+    from core.strategy import StrategyParser
+
+    action = args.action
+    if action == "convert":
+        p = get_platform()
+        if not p.strategies_dir.exists():
+            print(f"Strategies dir not found: {p.strategies_dir}")
+            return
+        print("Converting all strategies to zapret2 format...")
+        updated = StrategyParser.convert_all_to_zapret2(str(p.strategies_dir))
+        if updated:
+            for n in updated:
+                print(f"  OK: {n}")
+            print(f"\nConverted {len(updated)} strategies to zapret2 format.")
+            print(
+                "Set 'zapret_version': '2' in ~/.config/mangopret/config.json to use them."
+            )
+        else:
+            print("No strategies found to convert.")
 
 
 def cmd_convert(args: argparse.Namespace) -> None:
@@ -469,6 +508,15 @@ def main() -> None:
     )
     p_lists.add_argument("file", nargs="?", default=None)
 
+    p_zapret2 = sub.add_parser(
+        "zapret2", help="Convert strategies to zapret2 format or manage zapret2"
+    )
+    p_zapret2.add_argument(
+        "action",
+        choices=["convert"],
+        help="Action: convert all strategies to zapret2 format",
+    )
+
     sub.add_parser("version", help="Show version and check for updates")
 
     try:
@@ -510,6 +558,7 @@ def main() -> None:
         "lists": cmd_lists,
         "diagnostics": cmd_diagnostics,
         "convert": cmd_convert,
+        "zapret2": cmd_zapret2,
         "completion": cmd_completion,
     }
 
