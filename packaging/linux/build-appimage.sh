@@ -33,10 +33,10 @@ cp run.sh run_gui.sh README.md README.en.md LICENSE.txt "${APP_DIR}/"
 cp packaging/linux/AppRun "${APP_DIR}/AppRun"
 cp packaging/linux/mangopret.desktop "${APP_DIR}/"
 
-# Copy icon
-cp gui/ui/icon.svg "${APP_DIR}/"
+# Copy icon (name must match Icon= in desktop file)
+cp gui/ui/icon.svg "${APP_DIR}/mangopret.svg"
 cp gui/ui/icon.svg "${APP_DIR}/usr/share/icons/hicolor/scalable/apps/mangopret.svg"
-ln -sf "${APP_DIR}/icon.svg" "${APP_DIR}/.DirIcon"
+ln -sf "${APP_DIR}/mangopret.svg" "${APP_DIR}/.DirIcon"
 
 chmod +x "${APP_DIR}/AppRun"
 
