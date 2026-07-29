@@ -89,30 +89,48 @@ jobs:
             checksums.txt
           generate_release_notes: true
 
-      - name: Compute hash for checkupdate
-        id: hash
+      - name: Compute hashes for each artifact
+        id: hashes
         run: |
-          HASH=$(find . -maxdepth 3 -name '*.tar.gz' -type f -exec sha256sum {} + | head -1 | cut -d' ' -f1)
-          echo "hash=${HASH:-placeholder}" >> "$GITHUB_OUTPUT"
+          V="${VERSION#v}"
+          HASH_TAR=$(find . -maxdepth 3 -name '*.tar.gz' -type f -exec sha256sum {} + | head -1 | cut -d' ' -f1)
+          HASH_APP=$(find . -maxdepth 3 -name '*.AppImage' -type f -exec sha256sum {} + | head -1 | cut -d' ' -f1)
+          HASH_ZIP=$(find . -maxdepth 3 -name '*.zip' -type f -exec sha256sum {} + | head -1 | cut -d' ' -f1)
+          echo "hash_tar=${HASH_TAR:-placeholder}" >> "$GITHUB_OUTPUT"
+          echo "hash_app=${HASH_APP:-placeholder}" >> "$GITHUB_OUTPUT"
+          echo "hash_zip=${HASH_ZIP:-placeholder}" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch release body
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$VERSION" --json body --jq .body > /tmp/release_body.txt 2>/dev/null || true
+          if [ ! -s /tmp/release_body.txt ]; then
+            echo "No release body found" > /tmp/release_body.txt
+          fi
 
       - uses: actions/checkout@v7.0.1
         with:
           ref: updatecheck
 
-      - name: Update checkupdate file
+      - name: Update checkupdate and changelog
         run: |
           V="${VERSION#v}"
           printf '%s\n' \
             "# Mangopret Update Check" \
             "LAST_VERSION = \"${V}\"" \
-            "VERSION_HASH = \"${{ steps.hash.outputs.hash }}\"" \
+            "HASH_TAR_GZ = \"${{ steps.hashes.outputs.hash_tar }}\"" \
+            "HASH_APPIMAGE = \"${{ steps.hashes.outputs.hash_app }}\"" \
+            "HASH_ZIP = \"${{ steps.hashes.outputs.hash_zip }}\"" \
             > checkupdate
+          printf '# Changelog\n\n' > CHANGELOG.md
+          cat /tmp/release_body.txt >> CHANGELOG.md
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add checkupdate
+          git add checkupdate CHANGELOG.md
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "Update checkupdate to v${V}"
+            git commit -m "Update checkupdate and changelog to v${V}"
             git push
           fi
