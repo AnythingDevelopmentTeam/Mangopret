@@ -15,7 +15,7 @@ class Config:
         "minimize_to_tray": True,
         "start_minimized": False,
         "auto_start": False,
-        "theme": "system",
+        "theme": "dark",
         "nfqueue_num": "200",
         "linux_zapret_path": "",
     }

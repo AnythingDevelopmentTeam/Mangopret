@@ -69,9 +69,6 @@ class MainTab(QWidget):
 
         self._build_strategy(layout)
 
-        if self.platform and self.platform.is_linux:
-            self._build_desktop_ui(layout)
-
         self._build_startup_ui(layout)
 
         self._build_updates_ui(layout)
@@ -196,6 +193,15 @@ class MainTab(QWidget):
             svc_row.addWidget(self.btn_remove_svc)
             g_layout.addLayout(svc_row)
 
+            un_row = QHBoxLayout()
+            self.btn_uninstall = QPushButton("Remove Zapret")
+            self.btn_uninstall.setObjectName("stopBtn")
+            self.btn_uninstall.setMinimumHeight(28)
+            self.btn_uninstall.clicked.connect(self._uninstall_zapret)
+            un_row.addWidget(self.btn_uninstall)
+            un_row.addStretch()
+            g_layout.addLayout(un_row)
+
             # DEPRECATED: will be removed in 1.3.0 (autostart checkbox removed)
             # boot_row = QHBoxLayout()
             # self.chk_autostart = QCheckBox("Enable on boot")
@@ -207,26 +213,6 @@ class MainTab(QWidget):
             self.svc_status_label = QLabel("")
             self.svc_status_label.setObjectName("subHeaderLabel")
             g_layout.addWidget(self.svc_status_label)
-
-        layout.addWidget(group)
-
-    def _build_desktop_ui(self, layout):
-        group = QGroupBox("App Menu Entry")
-        g_layout = QVBoxLayout(group)
-
-        btn_row = QHBoxLayout()
-        self.btn_install_desktop = QPushButton("Install to Menu")
-        self.btn_install_desktop.setMinimumHeight(28)
-        self.btn_install_desktop.clicked.connect(self._install_desktop_entry)
-        btn_row.addWidget(self.btn_install_desktop)
-
-        self.btn_remove_desktop = QPushButton("Remove from Menu")
-        self.btn_remove_desktop.setObjectName("stopBtn")
-        self.btn_remove_desktop.setMinimumHeight(28)
-        self.btn_remove_desktop.clicked.connect(self._remove_desktop_entry)
-        btn_row.addWidget(self.btn_remove_desktop)
-        btn_row.addStretch()
-        g_layout.addLayout(btn_row)
 
         layout.addWidget(group)
 
@@ -392,28 +378,37 @@ class MainTab(QWidget):
             self.diag_text.append(f"Failed to remove: {err}")
         self.refresh_service_status()
 
+    def _uninstall_zapret(self):
+        if not self.platform:
+            return
+        reply = QMessageBox.question(
+            self,
+            "Confirm",
+            "Remove zapret completely?\n\n"
+            "This will:\n"
+            "  • Stop nfqws and clean iptables\n"
+            "  • Remove systemd service\n"
+            "  • Delete /opt/zapret\n\n"
+            "Continue?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        self.platform.kill_all()
+        self.platform.remove_systemd_service()
+        import shutil
+        zapret_dir = self.platform.zapret_dir
+        if zapret_dir.exists():
+            shutil.rmtree(zapret_dir)
+            msg = "Zapret removed"
+            self.diag_text.append(msg)
+            self.log_signal.emit(msg)
+        else:
+            self.diag_text.append("Zapret not found")
+        self.refresh_service_status()
+
     def _toggle_autostart(self):
         pass  # DEPRECATED: will be removed in 1.3.0
-
-    def _install_desktop_entry(self):
-        if not self.platform:
-            return
-        ok, msg = self.platform.create_desktop_entry()
-        if ok:
-            self.diag_text.append(f"Desktop entry installed: {msg}")
-            self.log_signal.emit(f"Desktop entry installed: {msg}")
-        else:
-            self.diag_text.append(f"Failed: {msg}")
-
-    def _remove_desktop_entry(self):
-        if not self.platform:
-            return
-        ok, msg = self.platform.remove_desktop_entry()
-        if ok:
-            self.diag_text.append("Desktop entry removed")
-            self.log_signal.emit("Desktop entry removed")
-        else:
-            self.diag_text.append(f"Failed: {msg}")
 
     def _toggle_startup(self):
         pass  # DEPRECATED: will be removed in 1.3.0

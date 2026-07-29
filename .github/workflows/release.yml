@@ -27,8 +27,8 @@ jobs:
         run: |
           DIST="mangopret-${VERSION}-linux-$(uname -m)"
           mkdir -p "$DIST"
-          cp -r gui lists bin .service "$DIST/"
-          cp run.sh run_gui.sh install.sh README.md README.en.md LICENSE.txt "$DIST/"
+          cp -r gui lists bin .service strategies "$DIST/"
+          cp run.sh run_gui.sh install.sh install_bin_atomic.sh README.md README.en.md LICENSE.txt "$DIST/"
           cp -r pip "$DIST/"
           tar czf "${DIST}.tar.gz" "$DIST"
 
@@ -51,8 +51,8 @@ jobs:
           DIST="mangopret-${VERSION}-win64"
           mkdir -p "$DIST/python"
           cp -r "$PY_DIR"/* "$DIST/python/"
-          cp -r gui lists bin pip "$DIST/"
-          cp run.bat run_gui.bat install.sh README.md README.en.md LICENSE.txt "$DIST/"
+          cp -r gui lists bin pip strategies "$DIST/"
+          cp run.bat run_gui.bat install.sh install_bin_atomic.sh README.md README.en.md LICENSE.txt "$DIST/"
           cd "$DIST" && zip -r "../${DIST}.zip" . && cd ..
 
       - uses: actions/upload-artifact@v7.0.1

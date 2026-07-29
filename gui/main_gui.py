@@ -21,7 +21,7 @@ from core.log import get_logger
 from core.platform import PlatformInfo
 from PyQt6.QtGui import QFont
 from PyQt6.QtNetwork import QLocalServer, QLocalSocket
-from PyQt6.QtWidgets import QApplication, QStyleFactory
+from PyQt6.QtWidgets import QApplication
 from ui.main_window import MainWindow
 from ui.theme import THEMES
 
@@ -89,19 +89,6 @@ def _handle_sigint(sig, frame) -> None:
     QTimer.singleShot(0, QApplication.quit)
 
 
-def _apply_theme(app, platform: PlatformInfo) -> None:
-    if platform.is_windows:
-        available = QStyleFactory.keys()
-        for name in ("windows11", "windowsvista"):
-            if name in available:
-                app.setStyle(name)
-                break
-        else:
-            app.setStyle("fusion")
-    else:
-        app.setStyleSheet("")
-
-
 def main() -> None:
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     app = QApplication(sys.argv)
@@ -112,6 +99,9 @@ def main() -> None:
     font = QFont("Segoe UI", 10)
     app.setFont(font)
 
+    if sys.platform != "win32":
+        app.setStyle("fusion")
+
     platform = PlatformInfo(BASE_DIR)
     platform.ensure_dirs()
 
@@ -121,11 +111,11 @@ def main() -> None:
 
     config = Config(str(platform.config_dir))
 
-    theme = config.get("theme", "system")
+    theme = config.get("theme", "dark")
     if theme in THEMES:
         app.setStyleSheet(THEMES[theme])
     else:
-        _apply_theme(app, platform)
+        app.setStyleSheet(THEMES["dark"])
     list_manager = ListManager(str(platform.lists_dir), str(platform.utils_dir))
 
     args = sys.argv[1:]

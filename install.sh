@@ -1,33 +1,28 @@
 #!/bin/bash
 set -e
 
-REPO="AnythingDevelopmentTeam/Mangopret"
-INSTALL_DIR="${INSTALL_DIR:-/opt/zapret}"
+REPO="https://github.com/AnythingDevelopmentTeam/Mangopret.git"
+INSTALL_DIR="${INSTALL_DIR:-/opt/mangopret}"
 
 if [ "$(id -u)" -ne 0 ]; then
     exec sudo -E "$0" "$@"
 fi
 
-echo "==> Fetching latest release from $REPO ..."
-LATEST=$(curl -sSL "https://api.github.com/repos/$REPO/releases/latest")
-VERSION=$(echo "$LATEST" | grep -oP '"tag_name":\s*"\K[^"]+')
-echo "    Latest version: $VERSION"
+TMPDIR=$(mktemp -d)
 
-ARCHIVE_URL=$(echo "$LATEST" | grep -oP '"browser_download_url":\s*"\K[^"]+linux-[^"]+\.tar\.gz' | head -1)
-if [ -z "$ARCHIVE_URL" ]; then
-    echo "Error: no Linux tar.gz found in latest release"
-    exit 1
-fi
+echo "==> Cloning latest version from $REPO ..."
+git clone --depth 1 "$REPO" "$TMPDIR"
 
-ARCHIVE_NAME=$(basename "$ARCHIVE_URL")
-
-echo "==> Downloading $ARCHIVE_NAME ..."
-curl -#SL -o "/tmp/$ARCHIVE_NAME" "$ARCHIVE_URL"
+VERSION=$(cd "$TMPDIR" && git describe --tags --always 2>/dev/null || echo "git")
+echo "    Version: $VERSION"
 
 echo "==> Installing to $INSTALL_DIR ..."
+if [ -d "$INSTALL_DIR" ]; then
+    rm -rf "$INSTALL_DIR"
+fi
 mkdir -p "$INSTALL_DIR"
-tar xzf "/tmp/$ARCHIVE_NAME" -C "$INSTALL_DIR" --strip-components=1
-rm "/tmp/$ARCHIVE_NAME"
+cp -a "$TMPDIR"/. "$INSTALL_DIR"
+rm -rf "$INSTALL_DIR/.git" "$TMPDIR"
 
 cd "$INSTALL_DIR"
 
@@ -47,8 +42,8 @@ if ! "$PYTHON" -c "import PyQt6" 2>/dev/null; then
 fi
 
 echo "==> Creating symlink ..."
-ln -sf "$INSTALL_DIR/run.sh" /usr/local/bin/mangopret
-ln -sf "$INSTALL_DIR/run_gui.sh" /usr/local/bin/mangopret-gui
+ln -sf "$INSTALL_DIR/run.sh" /bin/mangopret
+ln -sf "$INSTALL_DIR/run_gui.sh" /bin/mangopret-gui
 
 echo "==> Installing desktop entry ..."
 cp mangopret.desktop /usr/share/applications/

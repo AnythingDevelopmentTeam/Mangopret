@@ -59,6 +59,37 @@ class PlatformInfo:
                 return
         self.binary = candidates[0]
 
+    def _link_zapret_binaries(self, zapret_base: Path) -> None:
+        binaries = zapret_base / "binaries"
+        arch_map = [
+            binaries / "linux-x86_64",
+            binaries / "linux-x86",
+            binaries / "linux-arm64",
+            binaries / "linux-arm",
+        ]
+        for arch_dir in arch_map:
+            ip2net_bin = arch_dir / "ip2net"
+            if ip2net_bin.exists() and os.access(str(ip2net_bin), os.X_OK):
+                for name, link_dir in (
+                    ("ip2net", "ip2net"),
+                    ("mdig", "mdig"),
+                    ("nfqws", "nfq"),
+                    ("tpws", "tpws"),
+                ):
+                    src = arch_dir / name
+                    if not src.exists():
+                        continue
+                    dst = zapret_base / link_dir
+                    dst.mkdir(parents=True, exist_ok=True)
+                    link = dst / name
+                    if link.exists():
+                        link.unlink()
+                    rel = os.path.relpath(src, dst)
+                    link.symlink_to(rel)
+                    logger.info("linked %s -> %s", rel, link)
+                return
+        logger.warning("No compatible binaries found in %s", binaries)
+
     def _get_config_dir(self) -> Path:
         if self.is_windows:
             base = os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")
@@ -182,23 +213,37 @@ class PlatformInfo:
                 with open(config_file, "a") as f:
                     f.write(f"FWTYPE={fwtype}\n")
 
-            if callback:
-                callback("Detecting architecture and linking binaries ...")
-            subprocess.run(
-                ["bash", str(target / "install_bin.sh")],
-                cwd=str(target),
-                capture_output=True,
-                text=True,
-                timeout=120,
-                check=False,
-            )
-
             if self._is_atomic_system():
-                if callback:
-                    callback(
-                        "Atomic system detected — install_prereq.sh skipped (system packages not available)"
+                atomic_installer = self.base_dir / "install_bin_atomic.sh"
+                if atomic_installer.exists():
+                    if callback:
+                        callback("Atomic system detected — running install_bin_atomic.sh ...")
+                    subprocess.run(
+                        ["bash", str(atomic_installer)],
+                        cwd=str(target),
+                        capture_output=True,
+                        text=True,
+                        timeout=120,
+                        check=False,
                     )
+                else:
+                    if callback:
+                        callback(
+                            "Atomic system detected — install_bin_atomic.sh not found, creating symlinks directly"
+                        )
+                    self._link_zapret_binaries(target)
             else:
+                if callback:
+                    callback("Detecting architecture and linking binaries ...")
+                subprocess.run(
+                    ["bash", str(target / "install_bin.sh")],
+                    cwd=str(target),
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                    check=False,
+                )
+
                 if callback:
                     callback("Installing prerequisites ...")
                 try:
@@ -569,9 +614,30 @@ class PlatformInfo:
         official_service = Path("/etc/systemd/system/zapret.service")
         official_link = self.zapret_dir / "init.d" / "systemd" / "zapret.service"
 
-        if not official_service.exists() and official_link.exists():
+        if official_service.exists():
+            pass
+        elif official_link.exists():
             shutil.copy2(str(official_link), str(official_service))
             logger.info("Installed official zapret.service")
+        else:
+            logger.warning("Official zapret.service not found — creating inline fallback")
+            fallback = (
+                "[Unit]\n"
+                "Description=zapret DPI bypass (mangopret-managed)\n"
+                "After=network.target\n"
+                "\n"
+                "[Service]\n"
+                "Type=oneshot\n"
+                "RemainAfterExit=yes\n"
+                "ExecStart=/opt/zapret/init.d/sysv/zapret start\n"
+                "ExecStop=/opt/zapret/init.d/sysv/zapret stop\n"
+                "ExecReload=/opt/zapret/init.d/sysv/zapret restart\n"
+                "\n"
+                "[Install]\n"
+                "WantedBy=multi-user.target\n"
+            )
+            official_service.write_text(fallback, encoding="utf-8")
+            logger.info("Created fallback zapret.service")
 
         self._fix_init_script_perms()
 
@@ -923,46 +989,4 @@ class PlatformInfo:
         except Exception as exc:
             return (False, str(exc))
 
-    # ------------------------------------------------------------------ desktop entry
 
-    def create_desktop_entry(self) -> tuple[bool, str]:
-        if not self.is_linux:
-            return (False, "Not Linux")
-        try:
-            desktop_dir = Path.home() / ".local" / "share" / "applications"
-            desktop_dir.mkdir(parents=True, exist_ok=True)
-            dest = desktop_dir / "mangopret.desktop"
-            src = self.base_dir / "mangopret.desktop"
-            if src.exists():
-                content = src.read_text(encoding="utf-8")
-                content = content.replace(
-                    "Exec=run_gui.sh",
-                    f"Exec=bash -c 'cd \"{self.base_dir}\" && ./run_gui.sh'",
-                )
-                dest.write_text(content, encoding="utf-8")
-                dest.chmod(0o644)
-                return (True, str(dest))
-            return (False, "mangopret.desktop not found")
-        except Exception as exc:
-            return (False, str(exc))
-
-    def remove_desktop_entry(self) -> tuple[bool, str]:
-        if not self.is_linux:
-            return (False, "Not Linux")
-        try:
-            dest = (
-                Path.home() / ".local" / "share" / "applications" / "mangopret.desktop"
-            )
-            if dest.exists():
-                dest.unlink()
-                return (True, "")
-            return (False, "Not installed")
-        except Exception as exc:
-            return (False, str(exc))
-
-    def is_desktop_entry_installed(self) -> bool:
-        if not self.is_linux:
-            return False
-        return (
-            Path.home() / ".local" / "share" / "applications" / "mangopret.desktop"
-        ).exists()
