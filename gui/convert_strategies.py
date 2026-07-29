@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-import sys
-import os
-import json
 import argparse
+import json
+import sys
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -10,8 +9,8 @@ BASE_DIR = SCRIPT_DIR.parent
 
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from core.strategy import StrategyParser, Strategy
 from core.log import get_logger
+from core.strategy import Strategy, StrategyParser
 
 logger = get_logger(__name__)
 
@@ -121,7 +120,7 @@ def verify_strategies(strategies_dir: Path) -> bool:
 
 
 def diff_with_bats(bat_dir: Path, strategy_dir: Path) -> bool:
-    print(f"  Comparing .bat files with .strategy files")
+    print("  Comparing .bat files with .strategy files")
     print(f"  BAT dir:     {bat_dir}")
     print(f"  Strategy dir: {strategy_dir}")
     print()
@@ -157,16 +156,32 @@ def main() -> int:
         description="Mangopret Strategy Converter: .bat -> .strategy",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--bat-dir", type=str, default=None,
-                        help="Directory containing .bat files (default: auto-detect)")
-    parser.add_argument("--output", "-o", type=str, default=None,
-                        help="Output directory for .strategy files (default: gui/strategies/)")
-    parser.add_argument("--verify", action="store_true",
-                        help="Verify existing .strategy files instead of converting")
-    parser.add_argument("--single", type=str, default=None,
-                        help="Convert a single .bat file")
-    parser.add_argument("--diff", action="store_true",
-                        help="Compare .bat files with existing .strategy files")
+    parser.add_argument(
+        "--bat-dir",
+        type=str,
+        default=None,
+        help="Directory containing .bat files (default: auto-detect)",
+    )
+    parser.add_argument(
+        "--output",
+        "-o",
+        type=str,
+        default=None,
+        help="Output directory for .strategy files (default: gui/strategies/)",
+    )
+    parser.add_argument(
+        "--verify",
+        action="store_true",
+        help="Verify existing .strategy files instead of converting",
+    )
+    parser.add_argument(
+        "--single", type=str, default=None, help="Convert a single .bat file"
+    )
+    parser.add_argument(
+        "--diff",
+        action="store_true",
+        help="Compare .bat files with existing .strategy files",
+    )
 
     args = parser.parse_args()
 

@@ -1,5 +1,4 @@
 import logging
-import os
 import sys
 from pathlib import Path
 
@@ -20,7 +19,9 @@ def _add_file_handler(logger: logging.Logger) -> None:
         return
     log_file = _LOG_DIR / "mangopret.log"
     fh = logging.FileHandler(str(log_file), encoding="utf-8", mode="a")
-    fh.setFormatter(logging.Formatter(fmt="%(asctime)s [%(name)s] %(levelname)s %(message)s"))
+    fh.setFormatter(
+        logging.Formatter(fmt="%(asctime)s [%(name)s] %(levelname)s %(message)s")
+    )
     logger.addHandler(fh)
 
 

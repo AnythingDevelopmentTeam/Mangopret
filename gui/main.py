@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-import sys
-import os
 import argparse
+import os
 import subprocess
+import sys
+
 try:
     import argcomplete
 except ImportError:
@@ -13,15 +14,16 @@ BASE_DIR = os.path.dirname(SCRIPT_DIR)
 
 sys.path.insert(0, SCRIPT_DIR)
 
-from gui import APP_VERSION
-from core.platform import PlatformInfo
 from core.config import Config
-from core.strategy import StrategyParser
 from core.log import get_logger
+from core.platform import PlatformInfo
+from core.strategy import StrategyParser
+
+from gui import APP_VERSION
 
 logger = get_logger(__name__)
 
-BANNER = r"""
+BANNER = rf"""
   __  __                         _____          _
  |  \/  |                       |  __ \        | |
  | \  / | __ _ _ __   __ _  ___ | |__) | __ ___| |_
@@ -29,9 +31,9 @@ BANNER = r"""
  | |  | | (_| | | | | (_| | (_) | |   | | |  __/ |_
  |_|  |_|\__,_|_| |_|\__, |\___/|_|   |_|  \___|\__|
                       __/ |
-                     |___/                           v%s
+                     |___/                           v{APP_VERSION}
 
-""" % APP_VERSION
+"""
 
 
 def get_platform() -> PlatformInfo:
@@ -74,6 +76,7 @@ def cmd_uninstall(args: argparse.Namespace) -> None:
         reply = input(f"Delete {zapret_dir}? [y/N] ").strip().lower()
         if reply == "y":
             import shutil
+
             shutil.rmtree(zapret_dir)
             print(f"Removed {zapret_dir}")
         else:
@@ -116,7 +119,7 @@ def cmd_start(args: argparse.Namespace) -> None:
     print(f"Starting: {name}")
     if p.is_linux:
         config.set("last_strategy", name)
-        print(f"Writing zapret config and starting service...")
+        print("Writing zapret config and starting service...")
         ok = p.create_systemd_service(strategy, name)
         if not ok:
             print("Failed to write zapret config")
@@ -131,9 +134,12 @@ def cmd_start(args: argparse.Namespace) -> None:
         proc = p.start_process(args_list)
         if proc:
             import time
+
             time.sleep(1.5)
             if proc.poll() is not None:
-                print(f"FAILED: nfqws crashed immediately (exit code: {proc.returncode})")
+                print(
+                    f"FAILED: nfqws crashed immediately (exit code: {proc.returncode})"
+                )
                 sys.exit(1)
             print(f"Process started (PID: {proc.pid})")
             config.set("last_strategy", name)
@@ -163,7 +169,9 @@ def cmd_fix(args: argparse.Namespace) -> None:
         if init_script.exists():
             subprocess.run(
                 ["bash", str(init_script), "stop-fw"],
-                capture_output=True, timeout=10,
+                capture_output=True,
+                timeout=10,
+                check=False,
             )
             print("iptables rules cleaned via zapret init")
     print("All nfqws killed, network cleaned.")
@@ -269,11 +277,14 @@ def cmd_service(args: argparse.Namespace) -> None:
 def cmd_lists(args: argparse.Namespace) -> None:
     p = get_platform()
     from core.lists import ListManager
+
     lm = ListManager(str(p.lists_dir), str(p.utils_dir))
 
     action = args.action
     if action == "update-strategies":
-        ok = lm.update_strategies(str(p.strategies_dir), callback=lambda m: print(f"  {m}"))
+        ok = lm.update_strategies(
+            str(p.strategies_dir), callback=lambda m: print(f"  {m}")
+        )
         print("Strategies updated." if ok else "Failed to update strategies.")
     elif action == "update-ipset":
         ok = lm.update_ipset(callback=lambda m: print(f"  {m}"))
@@ -303,14 +314,16 @@ def cmd_lists(args: argparse.Namespace) -> None:
 def cmd_diagnostics(args: argparse.Namespace) -> None:
     p = get_platform()
     from core.lists import ListManager
+
     lm = ListManager(str(p.lists_dir), str(p.utils_dir))
     result = lm.run_diagnostics(p.is_windows)
     print(result)
 
 
 def cmd_convert(args: argparse.Namespace) -> None:
-    from core.strategy import StrategyParser
     from pathlib import Path
+
+    from core.strategy import StrategyParser
 
     input_path = Path(args.input)
     output_dir = Path(args.output)
@@ -362,12 +375,18 @@ def cmd_completion(args: argparse.Namespace) -> None:
     shell = args.shell
     try:
         import argcomplete
+
         # Register for both run.sh and python3 -m gui.main
-        code = argcomplete.shellcode([shell], "run.sh", argcomplete.argparse_wrapper("python3 -m gui.main"))
+        code = argcomplete.shellcode(
+            [shell], "run.sh", argcomplete.argparse_wrapper("python3 -m gui.main")
+        )
         print(code)
-        print(f"# Run: eval \"$({code})\"", file=sys.stderr)
+        print(f'# Run: eval "$({code})"', file=sys.stderr)
     except ImportError:
-        print("argcomplete not installed. Run: pip install mangopret[completion]", file=sys.stderr)
+        print(
+            "argcomplete not installed. Run: pip install mangopret[completion]",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
 
@@ -377,6 +396,7 @@ def cmd_autostart(args: argparse.Namespace) -> None:
 
 def cmd_version(args: argparse.Namespace) -> None:
     from core.update import check_mangopret_update
+
     print(f"Mangopret v{APP_VERSION}")
     result = check_mangopret_update()
     if result:
@@ -422,22 +442,35 @@ def main() -> None:
     sub.add_parser("fix", help="Emergency: kill all nfqws and clean iptables")
     sub.add_parser("diagnostics", help="Run diagnostics")
 
-    p_convert = sub.add_parser("convert", help="Convert .bat or zapret config files to .strategy")
-    p_convert.add_argument("input", help="Input .bat file or directory containing .bat/.strategy files")
-    p_convert.add_argument("-o", "--output", default="strategies",
-                           help="Output directory for .strategy files (default: strategies)")
+    p_convert = sub.add_parser(
+        "convert", help="Convert .bat or zapret config files to .strategy"
+    )
+    p_convert.add_argument(
+        "input", help="Input .bat file or directory containing .bat/.strategy files"
+    )
+    p_convert.add_argument(
+        "-o",
+        "--output",
+        default="strategies",
+        help="Output directory for .strategy files (default: strategies)",
+    )
 
     p_start = sub.add_parser("start", help="Start a strategy")
     p_start.add_argument("strategy", nargs="?", default="", help="Strategy name")
 
     p_svc = sub.add_parser("service", help="Manage systemd service")
-    p_svc.add_argument("action", choices=[
-        "install", "remove", "start", "stop", "enable", "disable", "log"
-    ])
+    p_svc.add_argument(
+        "action",
+        choices=["install", "remove", "start", "stop", "enable", "disable", "log"],
+    )
 
     p_lists = sub.add_parser("lists", help="Manage domain/IP lists")
-    p_lists.add_argument("action", nargs="?", default="list",
-                         choices=["list", "update-strategies", "update-ipset", "update-hosts", "edit"])
+    p_lists.add_argument(
+        "action",
+        nargs="?",
+        default="list",
+        choices=["list", "update-strategies", "update-ipset", "update-hosts", "edit"],
+    )
     p_lists.add_argument("file", nargs="?", default=None)
 
     sub.add_parser("version", help="Show version and check for updates")
@@ -450,9 +483,12 @@ def main() -> None:
     except ImportError:
         argcomplete = None
     else:
-        p_completion = sub.add_parser("completion", help="Generate shell completion script")
-        p_completion.add_argument("shell", choices=["bash", "zsh", "fish"],
-                                  help="Target shell")
+        p_completion = sub.add_parser(
+            "completion", help="Generate shell completion script"
+        )
+        p_completion.add_argument(
+            "shell", choices=["bash", "zsh", "fish"], help="Target shell"
+        )
 
     if argcomplete:
         argcomplete.autocomplete(parser)

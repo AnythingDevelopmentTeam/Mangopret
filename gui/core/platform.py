@@ -7,8 +7,10 @@ import sys
 import tarfile
 import tempfile
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
+
 from core.log import get_logger
 
 logger = get_logger(__name__)
@@ -103,7 +105,9 @@ class PlatformInfo:
             pass
         return False
 
-    def _install_zapret_linux(self, callback: Callable[[str], None] | None = None) -> bool:
+    def _install_zapret_linux(
+        self, callback: Callable[[str], None] | None = None
+    ) -> bool:
         tmpdir: Path | None = None
         try:
             base = Path.home() / ".local" / "tmp"
@@ -169,7 +173,9 @@ class PlatformInfo:
             config_content = config_file.read_text() if config_file.exists() else ""
             if "FWTYPE=" not in config_content:
                 try:
-                    r = subprocess.run(["which", "nft"], capture_output=True, timeout=5)
+                    r = subprocess.run(
+                        ["which", "nft"], capture_output=True, timeout=5, check=False
+                    )
                     fwtype = "nftables" if r.returncode == 0 else "iptables"
                 except Exception:
                     fwtype = "nftables"
@@ -181,12 +187,17 @@ class PlatformInfo:
             subprocess.run(
                 ["bash", str(target / "install_bin.sh")],
                 cwd=str(target),
-                capture_output=True, text=True, timeout=120,
+                capture_output=True,
+                text=True,
+                timeout=120,
+                check=False,
             )
 
             if self._is_atomic_system():
                 if callback:
-                    callback("Atomic system detected — install_prereq.sh skipped (system packages not available)")
+                    callback(
+                        "Atomic system detected — install_prereq.sh skipped (system packages not available)"
+                    )
             else:
                 if callback:
                     callback("Installing prerequisites ...")
@@ -202,15 +213,18 @@ class PlatformInfo:
                     env["FWTYPE"] = fwtype
                     proc = subprocess.run(
                         ["bash", str(target / "install_prereq.sh")],
-                        cwd=str(target), env=env,
-                        capture_output=True, text=True, timeout=300,
+                        cwd=str(target),
+                        env=env,
+                        capture_output=True,
+                        text=True,
+                        timeout=300,
+                        check=False,
                     )
                     if callback:
                         for line in proc.stdout.splitlines():
                             callback(line)
-                    if proc.returncode != 0:
-                        if callback:
-                            callback("WARNING: some prerequisites may not be installed")
+                    if proc.returncode != 0 and callback:
+                        callback("WARNING: some prerequisites may not be installed")
                 except Exception as exc:
                     if callback:
                         callback(f"WARNING: prerequisites install failed: {exc}")
@@ -222,11 +236,22 @@ class PlatformInfo:
                     d.chmod(0o755)
                 elif d.is_file():
                     d.chmod(0o644)
-            subprocess.run(["chown", "-R", "root:root", str(target)], capture_output=True, timeout=30)
+            subprocess.run(
+                ["chown", "-R", "root:root", str(target)],
+                capture_output=True,
+                timeout=30,
+                check=False,
+            )
             for pattern in ("ip2net", "nfqws", "tpws", "mdig"):
                 for f in (target / "binaries").rglob(pattern):
                     f.chmod(0o755)
-            for script in ("install_bin.sh", "install_easy.sh", "install_prereq.sh", "blockcheck.sh", "uninstall_easy.sh"):
+            for script in (
+                "install_bin.sh",
+                "install_easy.sh",
+                "install_prereq.sh",
+                "blockcheck.sh",
+                "uninstall_easy.sh",
+            ):
                 p = target / script
                 if p.exists():
                     p.chmod(0o755)
@@ -252,9 +277,11 @@ class PlatformInfo:
 
     def start_process(self, args: list) -> subprocess.Popen | None:
         cmd = [str(self.binary)] + args
-        kwargs: dict[str, Any] = dict(
-            cwd=str(self.bin_dir), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-        )
+        kwargs: dict[str, Any] = {
+            "cwd": str(self.bin_dir),
+            "stdout": subprocess.DEVNULL,
+            "stderr": subprocess.DEVNULL,
+        }
         if self.is_windows:
             kwargs["creationflags"] = _WIN_CREATE_NO_WINDOW | _WIN_BELOW_NORMAL_PRIORITY
         try:
@@ -263,7 +290,7 @@ class PlatformInfo:
             logger.error("Failed to start process: %s", exc)
             return None
 
-    def stop_process(self, proc: Optional[subprocess.Popen]) -> None:
+    def stop_process(self, proc: subprocess.Popen | None) -> None:
         if proc is None:
             return
         try:
@@ -281,12 +308,19 @@ class PlatformInfo:
             if self.is_windows:
                 r = subprocess.run(
                     ["tasklist", "/FI", f"IMAGENAME eq {name}"],
-                    capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=5,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=5,
                     creationflags=_WIN_CREATE_NO_WINDOW,
+                    check=False,
                 )
                 return name.lower() in r.stdout.lower()
             else:
-                r = subprocess.run(["pgrep", "-f", name], capture_output=True, timeout=5)
+                r = subprocess.run(
+                    ["pgrep", "-f", name], capture_output=True, timeout=5, check=False
+                )
                 return r.returncode == 0
         except Exception as exc:
             logger.warning("Failed to check running process: %s", exc)
@@ -298,9 +332,10 @@ class PlatformInfo:
                 ["taskkill", "/IM", "winws.exe", "/F"],
                 capture_output=True,
                 creationflags=_WIN_CREATE_NO_WINDOW,
+                check=False,
             )
         else:
-            subprocess.run(["pkill", "-f", "nfqws"], capture_output=True)
+            subprocess.run(["pkill", "-f", "nfqws"], capture_output=True, check=False)
 
     # ------------------------------------------------------------------ service
 
@@ -313,8 +348,13 @@ class PlatformInfo:
         try:
             r = subprocess.run(
                 ["sc", "query", "zapret"],
-                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=10,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=10,
                 creationflags=_WIN_CREATE_NO_WINDOW,
+                check=False,
             )
             if "RUNNING" in r.stdout:
                 return "running"
@@ -331,7 +371,12 @@ class PlatformInfo:
         try:
             r = subprocess.run(
                 ["systemctl", "is-active", "zapret"],
-                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=5,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=5,
+                check=False,
             )
             state = r.stdout.strip()
             if state == "active":
@@ -352,7 +397,12 @@ class PlatformInfo:
         try:
             r = subprocess.run(
                 ["systemctl", "is-enabled", "zapret"],
-                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=5,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=5,
+                check=False,
             )
             return r.stdout.strip() == "enabled"
         except Exception as exc:
@@ -366,16 +416,16 @@ class PlatformInfo:
             nfqws_opt = self._build_nfqws_opt(strategy)
             wf_tcp = strategy.wf_tcp
             wf_udp = strategy.wf_udp
-            queue_num = self._get_config_value("nfqueue_num", "200")
-
             config_path = self.zapret_dir / "config"
-            existing = config_path.read_text(encoding="utf-8") if config_path.exists() else ""
+            existing = (
+                config_path.read_text(encoding="utf-8") if config_path.exists() else ""
+            )
 
             def _replace_or_append(lines: list[str], key: str, value: str) -> None:
                 found = False
                 for i, line in enumerate(lines):
                     stripped = line.strip()
-                    if stripped.startswith(f"{key}=") or stripped.startswith(f"{key} "):
+                    if stripped.startswith((f"{key}=", f"{key} ")):
                         lines[i] = f"{key}={value}\n"
                         found = True
                         break
@@ -387,13 +437,13 @@ class PlatformInfo:
             else:
                 lines = [
                     "# Mangopret-managed zapret config\n",
-                    f"SET_MAXELEM=522288\n",
-                    f'IPSET_OPT="hashsize 262144 maxelem $SET_MAXELEM"\n',
-                    f"DESYNC_MARK=0x40000000\n",
-                    f"DESYNC_MARK_POSTNAT=0x20000000\n",
-                    f"DISABLE_IPV6=1\n",
-                    f"INIT_APPLY_FW=1\n",
-                    f"FWTYPE=nftables\n",
+                    "SET_MAXELEM=522288\n",
+                    'IPSET_OPT="hashsize 262144 maxelem $SET_MAXELEM"\n',
+                    "DESYNC_MARK=0x40000000\n",
+                    "DESYNC_MARK_POSTNAT=0x20000000\n",
+                    "DISABLE_IPV6=1\n",
+                    "INIT_APPLY_FW=1\n",
+                    "FWTYPE=nftables\n",
                 ]
 
             _replace_or_append(lines, "NFQWS_ENABLE", "1")
@@ -410,7 +460,7 @@ class PlatformInfo:
             new_lines: list[str] = []
             for line in lines:
                 stripped = line.strip()
-                if stripped.startswith("NFQWS_OPT=") or stripped.startswith("NFQWS_OPT "):
+                if stripped.startswith(("NFQWS_OPT=", "NFQWS_OPT ")):
                     in_nfqws_opt = True
                     new_lines.append(nfqws_opt_line + "\n")
                     continue
@@ -448,7 +498,10 @@ class PlatformInfo:
                     keyval = arg.split("=", 1)
                     if len(keyval) == 2:
                         val = self._resolve_zapret_path(keyval[1])
-                        if keyval[0] in ("--filter-tcp", "--filter-udp") and not val.strip():
+                        if (
+                            keyval[0] in ("--filter-tcp", "--filter-udp")
+                            and not val.strip()
+                        ):
                             skip = True
                             break
                         resolved.append(f"{keyval[0]}={val}")
@@ -476,7 +529,7 @@ class PlatformInfo:
         copied_bin: set[str] = set()
 
         for rule in strategy.rules:
-            for key, vals in rule.params.items():
+            for vals in rule.params.values():
                 if vals is None:
                     continue
                 if not isinstance(vals, list):
@@ -495,14 +548,20 @@ class PlatformInfo:
                         dst = dst_dir / src.name
                         if src.name in copied_bin:
                             continue
-                        if not dst.exists() or src.stat().st_mtime > dst.stat().st_mtime:
+                        if (
+                            not dst.exists()
+                            or src.stat().st_mtime > dst.stat().st_mtime
+                        ):
                             shutil.copy2(str(src), str(dst))
                         copied_bin.add(src.name)
                     else:
                         dst = zapret_ipset / src.name
                         if src.name in copied_ipset:
                             continue
-                        if not dst.exists() or src.stat().st_mtime > dst.stat().st_mtime:
+                        if (
+                            not dst.exists()
+                            or src.stat().st_mtime > dst.stat().st_mtime
+                        ):
                             shutil.copy2(str(src), str(dst))
                         copied_ipset.add(src.name)
 
@@ -519,7 +578,12 @@ class PlatformInfo:
         try:
             subprocess.run(
                 ["systemctl", "daemon-reload"],
-                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=10,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=10,
+                check=False,
             )
         except Exception as exc:
             logger.warning("daemon-reload failed: %s", exc)
@@ -530,10 +594,18 @@ class PlatformInfo:
             try:
                 content = service_file.read_text(encoding="utf-8")
                 for match in re.finditer(
-                    r'^Exec(?:Start|Stop|Reload)\s*=\s*(.+)$', content, re.MULTILINE
+                    r"^Exec(?:Start|Stop|Reload)\s*=\s*(.+)$", content, re.MULTILINE
                 ):
-                    cmd_path = match.group(1).strip().split()[0] if match.group(1).strip() else ""
-                    if cmd_path and not cmd_path.startswith("-") and not cmd_path.startswith("/usr"):
+                    cmd_path = (
+                        match.group(1).strip().split()[0]
+                        if match.group(1).strip()
+                        else ""
+                    )
+                    if (
+                        cmd_path
+                        and not cmd_path.startswith("-")
+                        and not cmd_path.startswith("/usr")
+                    ):
                         script = Path(cmd_path)
                         if script.exists() and not os.access(str(script), os.X_OK):
                             script.chmod(script.stat().st_mode | 0o111)
@@ -565,7 +637,12 @@ class PlatformInfo:
         try:
             r = subprocess.run(
                 ["systemctl", action, "zapret"],
-                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=10,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=10,
+                check=False,
             )
             return (r.returncode == 0, r.stderr.strip() if r.stderr else "")
         except Exception as exc:
@@ -591,7 +668,12 @@ class PlatformInfo:
                 unit_file = Path("/etc/systemd/system") / name
                 if unit_file.exists():
                     unit_file.unlink()
-            subprocess.run(["systemctl", "daemon-reload"], capture_output=True, timeout=10)
+            subprocess.run(
+                ["systemctl", "daemon-reload"],
+                capture_output=True,
+                timeout=10,
+                check=False,
+            )
             return (True, "")
         except Exception as exc:
             return (False, str(exc))
@@ -602,8 +684,13 @@ class PlatformInfo:
         try:
             r = subprocess.run(
                 ["sc", action, "zapret"],
-                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=10,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=10,
                 creationflags=_WIN_CREATE_NO_WINDOW,
+                check=False,
             )
             return (r.returncode == 0, r.stderr.strip() if r.stderr else "")
         except Exception as exc:
@@ -636,18 +723,24 @@ class PlatformInfo:
         try:
             for svc in ["zapret", "WinDivert"]:
                 subprocess.run(
-                    ["net", "stop", svc], capture_output=True,
+                    ["net", "stop", svc],
+                    capture_output=True,
                     creationflags=_WIN_CREATE_NO_WINDOW,
+                    check=False,
                 )
                 subprocess.run(
-                    ["sc", "delete", svc], capture_output=True,
+                    ["sc", "delete", svc],
+                    capture_output=True,
                     creationflags=_WIN_CREATE_NO_WINDOW,
+                    check=False,
                 )
             return (True, "")
         except Exception as exc:
             return (False, str(exc))
 
-    def service_install(self, strategy=None, strategy_name: str = "") -> tuple[bool, str]:
+    def service_install(
+        self, strategy=None, strategy_name: str = ""
+    ) -> tuple[bool, str]:
         if self.is_windows:
             return self._install_windows_service(strategy)
         if strategy:
@@ -670,10 +763,24 @@ class PlatformInfo:
                 sc_cmd = f'"{bin_path}"'
 
             r = subprocess.run(
-                ["sc", "create", "zapret", "binPath=", sc_cmd,
-                 "DisplayName=", "zapret", "start=", "auto"],
-                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=10,
+                [
+                    "sc",
+                    "create",
+                    "zapret",
+                    "binPath=",
+                    sc_cmd,
+                    "DisplayName=",
+                    "zapret",
+                    "start=",
+                    "auto",
+                ],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=10,
                 creationflags=_WIN_CREATE_NO_WINDOW,
+                check=False,
             )
             return (r.returncode == 0, r.stderr.strip() if r.stderr else "")
         except Exception as exc:
@@ -687,7 +794,12 @@ class PlatformInfo:
         try:
             r = subprocess.run(
                 ["journalctl", "-u", "zapret", "-n", str(lines), "--no-pager"],
-                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=10,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=10,
+                check=False,
             )
             return r.stdout
         except Exception as exc:
@@ -701,15 +813,22 @@ class PlatformInfo:
             try:
                 r = subprocess.run(
                     ["schtasks", "/query", "/tn", "Mangopret"],
-                    capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=10,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=10,
                     creationflags=_WIN_CREATE_NO_WINDOW,
+                    check=False,
                 )
                 return r.returncode == 0
             except Exception as exc:
                 logger.debug("Startup check failed: %s", exc)
                 return False
         else:
-            return (Path.home() / ".config" / "autostart" / "mangopret.desktop").exists()
+            return (
+                Path.home() / ".config" / "autostart" / "mangopret.desktop"
+            ).exists()
 
     def enable_startup(self) -> tuple[bool, str]:
         if self.is_windows:
@@ -725,7 +844,7 @@ class PlatformInfo:
                 "[Desktop Entry]\n"
                 "Name=Mangopret\n"
                 "Comment=Cross-platform DPI bypass manager\n"
-                f'Exec=bash -c \'cd "{self.base_dir}" && ./run_gui.sh --minimized\'\n'
+                f"Exec=bash -c 'cd \"{self.base_dir}\" && ./run_gui.sh --minimized'\n"
                 "Icon=mangopret\n"
                 "Terminal=false\n"
                 "Type=Application\n"
@@ -744,14 +863,26 @@ class PlatformInfo:
                 return (False, "run_gui.bat not found")
             cmd = f'cmd.exe /c "cd /d \\"{self.base_dir}\\" && run_gui.bat --minimized"'
             r = subprocess.run(
-                ["schtasks", "/create",
-                 "/tn", "Mangopret",
-                 "/tr", cmd,
-                 "/sc", "onlogon",
-                 "/rl", "highest",
-                 "/f"],
-                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=15,
+                [
+                    "schtasks",
+                    "/create",
+                    "/tn",
+                    "Mangopret",
+                    "/tr",
+                    cmd,
+                    "/sc",
+                    "onlogon",
+                    "/rl",
+                    "highest",
+                    "/f",
+                ],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=15,
                 creationflags=_WIN_CREATE_NO_WINDOW,
+                check=False,
             )
             if r.returncode == 0:
                 return (True, "")
@@ -778,8 +909,13 @@ class PlatformInfo:
         try:
             r = subprocess.run(
                 ["schtasks", "/delete", "/tn", "Mangopret", "/f"],
-                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=10,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=10,
                 creationflags=_WIN_CREATE_NO_WINDOW,
+                check=False,
             )
             if r.returncode == 0:
                 return (True, "")
@@ -801,7 +937,7 @@ class PlatformInfo:
                 content = src.read_text(encoding="utf-8")
                 content = content.replace(
                     "Exec=run_gui.sh",
-                    f'Exec=bash -c \'cd "{self.base_dir}" && ./run_gui.sh\'',
+                    f"Exec=bash -c 'cd \"{self.base_dir}\" && ./run_gui.sh'",
                 )
                 dest.write_text(content, encoding="utf-8")
                 dest.chmod(0o644)
@@ -814,7 +950,9 @@ class PlatformInfo:
         if not self.is_linux:
             return (False, "Not Linux")
         try:
-            dest = Path.home() / ".local" / "share" / "applications" / "mangopret.desktop"
+            dest = (
+                Path.home() / ".local" / "share" / "applications" / "mangopret.desktop"
+            )
             if dest.exists():
                 dest.unlink()
                 return (True, "")
@@ -825,4 +963,6 @@ class PlatformInfo:
     def is_desktop_entry_installed(self) -> bool:
         if not self.is_linux:
             return False
-        return (Path.home() / ".local" / "share" / "applications" / "mangopret.desktop").exists()
+        return (
+            Path.home() / ".local" / "share" / "applications" / "mangopret.desktop"
+        ).exists()

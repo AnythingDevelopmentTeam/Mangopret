@@ -1,6 +1,6 @@
-from PyQt6.QtWidgets import QSystemTrayIcon, QMenu, QApplication
-from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont
-from PyQt6.QtCore import pyqtSignal, QObject
+from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtGui import QColor, QFont, QIcon, QPainter, QPixmap
+from PyQt6.QtWidgets import QMenu, QSystemTrayIcon
 
 
 def create_tray_icon(color: str = "#7aa2f7") -> QIcon:
@@ -83,7 +83,9 @@ class SystemTray(QObject):
         for name, sid in strategies:
             action = self._strategies_menu.addAction(name)
             self._strategy_callbacks.append((sid, callback))
-            action.triggered.connect(lambda checked, s=sid: self._on_strategy_selected(s))
+            action.triggered.connect(
+                lambda checked, s=sid: self._on_strategy_selected(s)
+            )
 
     def _on_strategy_selected(self, strategy_id: str):
         self._current_strategy = strategy_id
@@ -107,7 +109,9 @@ class SystemTray(QObject):
             self.tray.setToolTip("Mangopret - Inactive")
 
     def show_message(self, title: str, message: str, duration: int = 3000):
-        self.tray.showMessage(title, message, QSystemTrayIcon.MessageIcon.Information, duration)
+        self.tray.showMessage(
+            title, message, QSystemTrayIcon.MessageIcon.Information, duration
+        )
 
     def show(self):
         self.tray.show()

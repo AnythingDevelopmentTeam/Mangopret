@@ -29,6 +29,13 @@ dev = [
 [tool.setuptools.packages.find]
 include = ["gui*"]
 
+[tool.ruff.lint]
+ignore = ["BLE001", "S110"]
+exclude = ["pip/"]
+
+[tool.ruff.lint.per-file-ignores]
+"pip/*" = ["ALL"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]

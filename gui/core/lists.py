@@ -1,7 +1,8 @@
 import os
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
+
 from core.log import get_logger
 
 logger = get_logger(__name__)
@@ -73,6 +74,7 @@ class ListManager:
         dest = self.lists_dir / "ipset-all.txt"
         try:
             import urllib.request
+
             if callback:
                 callback("Downloading ipset...")
             urllib.request.urlretrieve(url, dest)
@@ -89,13 +91,20 @@ class ListManager:
     def update_hosts(self, callback: Callable[[str], None] | None = None) -> bool:
         url = "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/refs/heads/main/.service/hosts"
         if os.name == "nt":
-            hosts_path = Path(os.environ.get("SystemRoot", "C:\\Windows")) / "System32" / "drivers" / "etc" / "hosts"
+            hosts_path = (
+                Path(os.environ.get("SystemRoot", "C:\\Windows"))
+                / "System32"
+                / "drivers"
+                / "etc"
+                / "hosts"
+            )
         else:
             hosts_path = Path("/etc/hosts")
 
         try:
-            import urllib.request
             import tempfile
+            import urllib.request
+
             if callback:
                 callback("Downloading hosts file...")
             tmp = Path(tempfile.mktemp(suffix=".txt"))
@@ -119,7 +128,9 @@ class ListManager:
 
             if needs_update:
                 if callback:
-                    callback(f"Hosts file needs update. New content available at: {url}")
+                    callback(
+                        f"Hosts file needs update. New content available at: {url}"
+                    )
                 return True
             else:
                 if callback:
@@ -132,16 +143,23 @@ class ListManager:
             logger.warning(msg)
             return False
 
-    def update_strategies(self, strategies_dir: str, branch: str = "main", callback: Callable[[str], None] | None = None) -> bool:
+    def update_strategies(
+        self,
+        strategies_dir: str,
+        branch: str = "main",
+        callback: Callable[[str], None] | None = None,
+    ) -> bool:
         url = f"https://api.github.com/repos/AnythingDevelopmentTeam/Mangopret/contents/gui/strategies?ref={branch}"
         dest = Path(strategies_dir)
         try:
-            import urllib.request
             import json
+            import urllib.request
 
             if callback:
                 callback("Fetching strategy list...")
-            req = urllib.request.Request(url, headers={"Accept": "application/vnd.github.v3+json"})
+            req = urllib.request.Request(
+                url, headers={"Accept": "application/vnd.github.v3+json"}
+            )
             with urllib.request.urlopen(req, timeout=15) as resp:
                 files = json.loads(resp.read().decode())
 
@@ -173,8 +191,13 @@ class ListManager:
             try:
                 r = subprocess.run(
                     ["sc", "query", "BFE"],
-                    capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=10,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=10,
                     creationflags=_WIN_CREATE_NO_WINDOW,
+                    check=False,
                 )
                 if "RUNNING" in r.stdout:
                     results.append("[OK] Base Filtering Engine is running")
@@ -186,13 +209,16 @@ class ListManager:
 
             try:
                 import winreg
+
                 key = winreg.OpenKey(
                     winreg.HKEY_CURRENT_USER,
                     r"Software\Microsoft\Windows\CurrentVersion\Internet Settings",
                 )
                 proxy_enabled, _ = winreg.QueryValueEx(key, "ProxyEnable")
                 if proxy_enabled:
-                    results.append("[WARN] System proxy is enabled - may conflict with DPI bypass")
+                    results.append(
+                        "[WARN] System proxy is enabled - may conflict with DPI bypass"
+                    )
                 else:
                     results.append("[OK] System proxy is disabled")
                 winreg.CloseKey(key)
@@ -203,8 +229,13 @@ class ListManager:
             try:
                 r = subprocess.run(
                     ["tasklist", "/FI", "IMAGENAME eq AdguardSvc.exe"],
-                    capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=5,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=5,
                     creationflags=_WIN_CREATE_NO_WINDOW,
+                    check=False,
                 )
                 if "AdguardSvc.exe" in r.stdout:
                     results.append("[WARN] Adguard is running - may cause conflicts")
@@ -215,11 +246,18 @@ class ListManager:
         else:
             results.append("[OK] Running on Linux")
             try:
-                r = subprocess.run(["which", "nft"], capture_output=True, timeout=5)
+                r = subprocess.run(
+                    ["which", "nft"], capture_output=True, timeout=5, check=False
+                )
                 if r.returncode == 0:
                     results.append("[OK] nftables found")
                 else:
-                    r2 = subprocess.run(["which", "iptables"], capture_output=True, timeout=5)
+                    r2 = subprocess.run(
+                        ["which", "iptables"],
+                        capture_output=True,
+                        timeout=5,
+                        check=False,
+                    )
                     if r2.returncode == 0:
                         results.append("[OK] iptables found")
                     else:
@@ -228,11 +266,21 @@ class ListManager:
                 logger.debug("Firewall check failed: %s", exc)
 
             try:
-                r = subprocess.run(["id"], capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=5)
+                r = subprocess.run(
+                    ["id"],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=5,
+                    check=False,
+                )
                 if "uid=0" in r.stdout:
                     results.append("[OK] Running as root")
                 else:
-                    results.append("[WARN] Not running as root - may need sudo for iptables")
+                    results.append(
+                        "[WARN] Not running as root - may need sudo for iptables"
+                    )
             except Exception as exc:
                 logger.debug("Root check failed: %s", exc)
 

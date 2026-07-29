@@ -1,10 +1,20 @@
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
-    QLabel, QComboBox, QPushButton, QRadioButton,
-    QButtonGroup, QFrame, QScrollArea, QGridLayout,
-    QTextEdit, QCheckBox, QMessageBox,
+    QButtonGroup,
+    QComboBox,
+    QFrame,
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QRadioButton,
+    QScrollArea,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
 )
-from PyQt6.QtCore import pyqtSignal, Qt
 
 
 class MainTab(QWidget):
@@ -80,11 +90,13 @@ class MainTab(QWidget):
         ip_row = QHBoxLayout()
         ip_row.addWidget(QLabel("IPSet mode:"))
         self.ipset_group = QButtonGroup()
-        for i, (val, text) in enumerate([
-            ("none", "None"),
-            ("loaded", "Loaded"),
-            ("any", "Any"),
-        ]):
+        for i, (val, text) in enumerate(
+            [
+                ("none", "None"),
+                ("loaded", "Loaded"),
+                ("any", "Any"),
+            ]
+        ):
             rb = QRadioButton(text)
             self.ipset_group.addButton(rb, i)
             rb.setProperty("ipset_value", val)
@@ -364,7 +376,9 @@ class MainTab(QWidget):
         if not self.platform:
             return
         reply = QMessageBox.question(
-            self, "Confirm", "Remove service?",
+            self,
+            "Confirm",
+            "Remove service?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply != QMessageBox.StandardButton.Yes:
@@ -407,22 +421,32 @@ class MainTab(QWidget):
     def _update_ipset(self):
         if not self.list_manager:
             return
+
         def callback(msg):
             self.diag_text.append(msg)
             self.log_signal.emit(msg)
+
         import threading
-        t = threading.Thread(target=self.list_manager.update_ipset, args=(callback,), daemon=True)
+
+        t = threading.Thread(
+            target=self.list_manager.update_ipset, args=(callback,), daemon=True
+        )
         t.start()
         self.log_signal.emit("IPSet update started...")
 
     def _update_hosts(self):
         if not self.list_manager:
             return
+
         def callback(msg):
             self.diag_text.append(msg)
             self.log_signal.emit(msg)
+
         import threading
-        t = threading.Thread(target=self.list_manager.update_hosts, args=(callback,), daemon=True)
+
+        t = threading.Thread(
+            target=self.list_manager.update_hosts, args=(callback,), daemon=True
+        )
         t.start()
 
     def _check_updates(self):
@@ -430,6 +454,7 @@ class MainTab(QWidget):
         self.log_signal.emit("Checking for updates...")
 
         from core.update import check_mangopret_update
+
         result = check_mangopret_update()
         if result:
             current, latest, _ = result
@@ -437,12 +462,15 @@ class MainTab(QWidget):
             self.log_signal.emit(f"Mangopret: {current} → latest: {latest}")
             if latest != current:
                 self.diag_text.append("UPDATE AVAILABLE")
-                self.log_signal.emit("UPDATE AVAILABLE — Download at https://github.com/Flowseal/mangopret/releases")
+                self.log_signal.emit(
+                    "UPDATE AVAILABLE — Download at https://github.com/Flowseal/mangopret/releases"
+                )
         else:
             self.diag_text.append("Mangopret: update check failed")
 
         try:
             import urllib.request
+
             url = "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/.service/version.txt"
             req = urllib.request.Request(url, headers={"User-Agent": "Mangopret"})
             with urllib.request.urlopen(req, timeout=10) as resp:

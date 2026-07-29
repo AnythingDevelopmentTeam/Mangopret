@@ -1,6 +1,11 @@
 import time
+
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QTextEdit, QPushButton, QHBoxLayout,
+    QHBoxLayout,
+    QPushButton,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
 )
 
 
@@ -46,4 +51,5 @@ class LogTab(QWidget):
         text = self.log_text.toPlainText()
         if text:
             from PyQt6.QtWidgets import QApplication
+
             QApplication.clipboard().setText(text)

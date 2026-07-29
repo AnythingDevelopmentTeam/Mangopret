@@ -2,9 +2,10 @@ import json
 import os
 import re
 import traceback
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-from dataclasses import dataclass, field
+
 from core.log import get_logger
 
 logger = get_logger(__name__)
@@ -15,33 +16,114 @@ BINARY_ALIASES: dict[str, str] = {
 }
 
 DESCRIPTIONS: dict[str, tuple[str, str]] = {
-    "general": ("General", "Default strategy. Multisplit with seqovl, fake for UDP. Try this first."),
-    "general_alt": ("General (ALT)", "Fake+fakedsplit with ts fooling. Good alternative if default doesn't work."),
-    "general_alt2": ("General (ALT2)", "Multisplit with seqovl=652, split-pos=2. Variant with different offsets."),
-    "general_alt3": ("General (ALT3)", "Hostfakesplit with auto fake TLS (rnd,dupsid,sni). Google sni=www.google.com, general sni=ya.ru."),
-    "general_alt4": ("General (ALT4)", "Fake,multisplit with badseq fooling, badseq-increment=1000."),
-    "general_alt5": ("General (ALT5)", "Syndata+multidisorder, IPv4 only. Minimal config, no per-hostlist splitting."),
-    "general_alt6": ("General (ALT6)", "Multisplit with seqovl=681, split-pos=1. Same technique, different offsets."),
-    "general_alt7": ("General (ALT7)", "Multisplit with split-pos=2,sniext+1, seqovl=679 for hostlisted; syndata for ipset."),
-    "general_alt8": ("General (ALT8)", "Pure fake with badseq fooling, fake-tls-mod=none. No split, only fakes."),
-    "general_alt9": ("General (ALT9)", "Hostfakesplit with ts fooling. Google host=www.google.com, general host=ozon.ru."),
-    "general_alt10": ("General (ALT10)", "Pure fake with ts fooling. General uses tls_clienthello_4pda_to.bin as fake."),
-    "general_alt11": ("General (ALT11)", "Fake,multisplit with ts fooling, repeats=8. QUIC fake repeats=11."),
-    "general_alt12": ("General (ALT12)", "Hybrid: Discord fake,multisplit; Google hostfakesplit; general fake,multisplit."),
-    "general_simple_fake": ("General (SIMPLE FAKE)", "Pure fake with ts fooling. Simple and effective for many providers."),
-    "general_simple_fake_alt": ("General (SIMPLE FAKE ALT)", "Pure fake with badseq fooling, badseq-increment=2."),
-    "general_simple_fake_alt2": ("General (SIMPLE FAKE ALT2)", "Pure fake with ts fooling. Game cutoff=n5."),
-    "general_fake_tls_auto": ("General (FAKE TLS AUTO)", "Auto-generated fake TLS with multidisorder. High repeats for reliability."),
-    "general_fake_tls_auto_alt": ("General (FAKE TLS AUTO ALT)", "Fake,fakedsplit with badseq fooling, auto fake TLS."),
-    "general_fake_tls_auto_alt2": ("General (FAKE TLS AUTO ALT2)", "Fake,multisplit with badseq, badseq-increment=10000000."),
-    "general_fake_tls_auto_alt3": ("General (FAKE TLS AUTO ALT3)", "Fake,multisplit with badseq, badseq-increment=1000."),
-    "general_exp": ("General (EXP)", "Experimental. Uses quic filter-l7 and hostfakesplit for Google."),
-    "general_multisplit": ("General (MULTISPLIT)", "Pure multisplit with seqovl. Multiple split positions for maximum DPI evasion."),
-    "general_fake+disorder": ("General (FAKE+DISORDER)", "fake,multidisorder with badseq fooling. Aggressive split+reorder approach."),
-    "general_fake_split": ("General (FAKE SPLIT)", "fake,fakedsplit with ts fooling. Combines fake packets with split at SNI boundary."),
-    "game_discord": ("Game (DISCORD)", "Optimized for Discord voice/video. Aggressive QUIC fake + low-latency UDP handling."),
-    "game_steam": ("Game (STEAM)", "Optimized for Steam. Game downloads, voice chat, and store access."),
-    "game_general": ("Game (GENERAL)", "General gaming optimization. Low latency UDP, wide port range, aggressive fake."),
+    "general": (
+        "General",
+        "Default strategy. Multisplit with seqovl, fake for UDP. Try this first.",
+    ),
+    "general_alt": (
+        "General (ALT)",
+        "Fake+fakedsplit with ts fooling. Good alternative if default doesn't work.",
+    ),
+    "general_alt2": (
+        "General (ALT2)",
+        "Multisplit with seqovl=652, split-pos=2. Variant with different offsets.",
+    ),
+    "general_alt3": (
+        "General (ALT3)",
+        "Hostfakesplit with auto fake TLS (rnd,dupsid,sni). Google sni=www.google.com, general sni=ya.ru.",
+    ),
+    "general_alt4": (
+        "General (ALT4)",
+        "Fake,multisplit with badseq fooling, badseq-increment=1000.",
+    ),
+    "general_alt5": (
+        "General (ALT5)",
+        "Syndata+multidisorder, IPv4 only. Minimal config, no per-hostlist splitting.",
+    ),
+    "general_alt6": (
+        "General (ALT6)",
+        "Multisplit with seqovl=681, split-pos=1. Same technique, different offsets.",
+    ),
+    "general_alt7": (
+        "General (ALT7)",
+        "Multisplit with split-pos=2,sniext+1, seqovl=679 for hostlisted; syndata for ipset.",
+    ),
+    "general_alt8": (
+        "General (ALT8)",
+        "Pure fake with badseq fooling, fake-tls-mod=none. No split, only fakes.",
+    ),
+    "general_alt9": (
+        "General (ALT9)",
+        "Hostfakesplit with ts fooling. Google host=www.google.com, general host=ozon.ru.",
+    ),
+    "general_alt10": (
+        "General (ALT10)",
+        "Pure fake with ts fooling. General uses tls_clienthello_4pda_to.bin as fake.",
+    ),
+    "general_alt11": (
+        "General (ALT11)",
+        "Fake,multisplit with ts fooling, repeats=8. QUIC fake repeats=11.",
+    ),
+    "general_alt12": (
+        "General (ALT12)",
+        "Hybrid: Discord fake,multisplit; Google hostfakesplit; general fake,multisplit.",
+    ),
+    "general_simple_fake": (
+        "General (SIMPLE FAKE)",
+        "Pure fake with ts fooling. Simple and effective for many providers.",
+    ),
+    "general_simple_fake_alt": (
+        "General (SIMPLE FAKE ALT)",
+        "Pure fake with badseq fooling, badseq-increment=2.",
+    ),
+    "general_simple_fake_alt2": (
+        "General (SIMPLE FAKE ALT2)",
+        "Pure fake with ts fooling. Game cutoff=n5.",
+    ),
+    "general_fake_tls_auto": (
+        "General (FAKE TLS AUTO)",
+        "Auto-generated fake TLS with multidisorder. High repeats for reliability.",
+    ),
+    "general_fake_tls_auto_alt": (
+        "General (FAKE TLS AUTO ALT)",
+        "Fake,fakedsplit with badseq fooling, auto fake TLS.",
+    ),
+    "general_fake_tls_auto_alt2": (
+        "General (FAKE TLS AUTO ALT2)",
+        "Fake,multisplit with badseq, badseq-increment=10000000.",
+    ),
+    "general_fake_tls_auto_alt3": (
+        "General (FAKE TLS AUTO ALT3)",
+        "Fake,multisplit with badseq, badseq-increment=1000.",
+    ),
+    "general_exp": (
+        "General (EXP)",
+        "Experimental. Uses quic filter-l7 and hostfakesplit for Google.",
+    ),
+    "general_multisplit": (
+        "General (MULTISPLIT)",
+        "Pure multisplit with seqovl. Multiple split positions for maximum DPI evasion.",
+    ),
+    "general_fake+disorder": (
+        "General (FAKE+DISORDER)",
+        "fake,multidisorder with badseq fooling. Aggressive split+reorder approach.",
+    ),
+    "general_fake_split": (
+        "General (FAKE SPLIT)",
+        "fake,fakedsplit with ts fooling. Combines fake packets with split at SNI boundary.",
+    ),
+    "game_discord": (
+        "Game (DISCORD)",
+        "Optimized for Discord voice/video. Aggressive QUIC fake + low-latency UDP handling.",
+    ),
+    "game_steam": (
+        "Game (STEAM)",
+        "Optimized for Steam. Game downloads, voice chat, and store access.",
+    ),
+    "game_general": (
+        "Game (GENERAL)",
+        "General gaming optimization. Low latency UDP, wide port range, aggressive fake.",
+    ),
 }
 
 
@@ -85,9 +167,7 @@ class Strategy:
             "author": self.author,
             "wf_tcp": self.wf_tcp,
             "wf_udp": self.wf_udp,
-            "rules": [
-                {"name": r.name, **r.params} for r in self.rules
-            ],
+            "rules": [{"name": r.name, **r.params} for r in self.rules],
         }
 
     def build_command(
@@ -100,8 +180,12 @@ class Strategy:
         cmd: list[str] = [str(binary_path)]
 
         if is_windows:
-            raw_tcp = self.wf_tcp.replace("%GameFilterTCP%", "").replace("{game_filter_tcp}", "")
-            raw_udp = self.wf_udp.replace("%GameFilterUDP%", "").replace("{game_filter_udp}", "")
+            raw_tcp = self.wf_tcp.replace("%GameFilterTCP%", "").replace(
+                "{game_filter_tcp}", ""
+            )
+            raw_udp = self.wf_udp.replace("%GameFilterUDP%", "").replace(
+                "{game_filter_udp}", ""
+            )
             tcp_parts = [p.strip() for p in raw_tcp.split(",") if p.strip()]
             udp_parts = [p.strip() for p in raw_udp.split(",") if p.strip()]
             if tcp_parts:
@@ -119,7 +203,10 @@ class Strategy:
                     keyval = arg.split("=", 1)
                     if len(keyval) == 2:
                         val = self._resolve_path(keyval[1], bin_dir, lists_dir)
-                        if keyval[0] in ("--filter-tcp", "--filter-udp") and not val.strip():
+                        if (
+                            keyval[0] in ("--filter-tcp", "--filter-udp")
+                            and not val.strip()
+                        ):
                             skip = True
                             break
                         resolved.append(f"{keyval[0]}={val}")
@@ -146,7 +233,7 @@ class Strategy:
         value = value.replace("{game_filter_udp}", "")
 
         if value.startswith(zapret_bin):
-            local = bin_dir.rstrip("\\/") + "/" + value[len(zapret_bin):]
+            local = bin_dir.rstrip("\\/") + "/" + value[len(zapret_bin) :]
             if os.path.isfile(local) and not os.path.isfile(value):
                 value = local
 
@@ -194,8 +281,8 @@ class StrategyParser:
         try:
             content = path.read_text(encoding="utf-8", errors="ignore")
 
-            wf_tcp_match = re.search(r'--wf-tcp=([^\s^]+)', content)
-            wf_udp_match = re.search(r'--wf-udp=([^\s^]+)', content)
+            wf_tcp_match = re.search(r"--wf-tcp=([^\s^]+)", content)
+            wf_udp_match = re.search(r"--wf-udp=([^\s^]+)", content)
 
             wf_tcp = ""
             wf_udp = ""
@@ -204,21 +291,21 @@ class StrategyParser:
             if wf_udp_match:
                 wf_udp = wf_udp_match.group(1).rstrip("^").strip()
 
-            wf_tcp = wf_tcp.replace('%GameFilterTCP%', '').strip(',').strip()
-            wf_udp = wf_udp.replace('%GameFilterUDP%', '').strip(',').strip()
+            wf_tcp = wf_tcp.replace("%GameFilterTCP%", "").strip(",").strip()
+            wf_udp = wf_udp.replace("%GameFilterUDP%", "").strip(",").strip()
 
             winws_match = re.search(r'winws\.exe["\s]', content)
             if not winws_match:
                 return None
 
-            cmd_text = content[winws_match.end():]
+            cmd_text = content[winws_match.end() :]
 
-            cmd_text = cmd_text.replace('^\n', ' ')
-            cmd_text = cmd_text.replace('^\r\n', ' ')
-            cmd_text = re.sub(r'\^(?=\s|$)', '', cmd_text)
-            cmd_text = cmd_text.replace('\r\n', ' ').replace('\n', ' ')
+            cmd_text = cmd_text.replace("^\n", " ")
+            cmd_text = cmd_text.replace("^\r\n", " ")
+            cmd_text = re.sub(r"\^(?=\s|$)", "", cmd_text)
+            cmd_text = cmd_text.replace("\r\n", " ").replace("\n", " ")
 
-            cmd_text = re.sub(r'::.*$', '', cmd_text, flags=re.MULTILINE)
+            cmd_text = re.sub(r"::.*$", "", cmd_text, flags=re.MULTILINE)
 
             cmd_text = cmd_text.strip()
 
@@ -231,8 +318,12 @@ class StrategyParser:
             for token in tokens:
                 if token == "--new":
                     if current_rule:
-                        rname = StrategyParser._generate_rule_name(current_rule, rule_names)
-                        rules.append(StrategyRule(name=rname, params=dict(current_rule)))
+                        rname = StrategyParser._generate_rule_name(
+                            current_rule, rule_names
+                        )
+                        rules.append(
+                            StrategyRule(name=rname, params=dict(current_rule))
+                        )
                     current_rule = {}
                     rule_names = []
                     continue
@@ -241,7 +332,7 @@ class StrategyParser:
                     eq_idx = token.find("=")
                     if eq_idx != -1:
                         key = token[2:eq_idx]
-                        val = token[eq_idx + 1:]
+                        val = token[eq_idx + 1 :]
                         val = StrategyParser._clean_value(val)
                     else:
                         key = token[2:]
@@ -259,7 +350,7 @@ class StrategyParser:
                     elif key == "filter-l3" and not rule_names:
                         rule_names.append(f"L3 {val}")
                     elif key == "hostlist-domains" and not any(
-                        n.startswith("Discord") or n.startswith("Google") for n in rule_names
+                        n.startswith(("Discord", "Google")) for n in rule_names
                     ):
                         domain = str(val)
                         if "discord" in domain.lower():
@@ -290,7 +381,7 @@ class StrategyParser:
             stem = path.stem
             clean_id = stem
             clean_name = stem.replace("(", " ").replace(")", " ").strip()
-            clean_name = re.sub(r'\s+', ' ', clean_name).strip()
+            clean_name = re.sub(r"\s+", " ", clean_name).strip()
 
             name_key = stem.lower().replace(" ", "_").replace("(", "").replace(")", "")
             if name_key in DESCRIPTIONS:
@@ -317,17 +408,17 @@ class StrategyParser:
     @staticmethod
     def _clean_value(val: str) -> str:
         val = val.strip('"')
-        val = val.replace('^!', '!')
+        val = val.replace("^!", "!")
         val = val.replace('^"', '"')
 
-        val = val.replace('%BIN%', '{bin}/')
-        val = val.replace('%LISTS%', '{lists}/')
-        val = val.replace('%GameFilterTCP%', '{game_filter_tcp}')
-        val = val.replace('%GameFilterUDP%', '{game_filter_udp}')
+        val = val.replace("%BIN%", "{bin}/")
+        val = val.replace("%LISTS%", "{lists}/")
+        val = val.replace("%GameFilterTCP%", "{game_filter_tcp}")
+        val = val.replace("%GameFilterUDP%", "{game_filter_udp}")
 
         if val.startswith('"') and val.endswith('"'):
             inner = val[1:-1]
-            if '{bin}' in inner or '{lists}' in inner:
+            if "{bin}" in inner or "{lists}" in inner:
                 val = inner
 
         return val
@@ -372,7 +463,7 @@ class StrategyParser:
             ch = text[i]
 
             if in_quote:
-                if ch == '\\' and i + 1 < len(text) and text[i + 1] == quote_char:
+                if ch == "\\" and i + 1 < len(text) and text[i + 1] == quote_char:
                     current += text[i + 1]
                     i += 2
                     continue
@@ -385,7 +476,7 @@ class StrategyParser:
                 in_quote = True
                 quote_char = ch
                 current += ch
-            elif ch in (' ', '\t', '\n', '\r'):
+            elif ch in (" ", "\t", "\n", "\r"):
                 if current.strip():
                     tokens.append(current.strip())
                 current = ""

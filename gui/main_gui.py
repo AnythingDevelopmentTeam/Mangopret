@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-import sys
 import os
 import signal
-import subprocess
+import sys
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BASE_DIR = os.path.dirname(SCRIPT_DIR)
@@ -16,16 +15,15 @@ if os.path.isdir(_qt_plugin_path):
 
 sys.path.insert(0, SCRIPT_DIR)
 
-from PyQt6.QtWidgets import QApplication, QStyleFactory
-from PyQt6.QtGui import QFont
-from PyQt6.QtNetwork import QLocalServer, QLocalSocket
-
-from core.platform import PlatformInfo
 from core.config import Config
 from core.lists import ListManager
+from core.log import get_logger
+from core.platform import PlatformInfo
+from PyQt6.QtGui import QFont
+from PyQt6.QtNetwork import QLocalServer, QLocalSocket
+from PyQt6.QtWidgets import QApplication, QStyleFactory
 from ui.main_window import MainWindow
 from ui.theme import THEMES
-from core.log import get_logger
 
 logger = get_logger(__name__)
 
@@ -62,7 +60,10 @@ def _start_server(parent_window) -> QLocalServer | None:
     return server
 
 
-_REQUIRES_ROOT = frozenset()  # DEPRECATED: will be removed in 1.3.0 (root elevation removed)
+_REQUIRES_ROOT = (
+    frozenset()
+)  # DEPRECATED: will be removed in 1.3.0 (root elevation removed)
+
 
 def _relaunch_elevated(args: list[str]) -> bool:
     return True  # DEPRECATED: will be removed in 1.3.0
@@ -84,6 +85,7 @@ def _dispatch(window, action: str, payload: dict) -> None:
 
 def _handle_sigint(sig, frame) -> None:
     from PyQt6.QtCore import QTimer
+
     QTimer.singleShot(0, QApplication.quit)
 
 
@@ -114,6 +116,7 @@ def main() -> None:
     platform.ensure_dirs()
 
     from core.log import set_log_dir
+
     set_log_dir(str(platform.config_dir))
 
     config = Config(str(platform.config_dir))
@@ -129,7 +132,9 @@ def main() -> None:
     start_minimized = "--minimized" in args or config.get("start_minimized", False)
 
     if not _try_activate_existing():
-        window = MainWindow(platform, config, list_manager, start_minimized=start_minimized)
+        window = MainWindow(
+            platform, config, list_manager, start_minimized=start_minimized
+        )
         _server = _start_server(window)
         if start_minimized:
             window.hide()

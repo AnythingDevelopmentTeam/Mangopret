@@ -1,10 +1,10 @@
 import re
 import urllib.request
+
 from gui import APP_VERSION
 
 CHECKUPDATE_URL = (
-    "https://raw.githubusercontent.com/"
-    "Flowseal/mangopret/main/checkupdate"
+    "https://raw.githubusercontent.com/Flowseal/mangopret/main/checkupdate"
 )
 
 

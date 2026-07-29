@@ -1,14 +1,14 @@
-import os
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
+
 from core.log import get_logger
 
 logger = get_logger(__name__)
 
 
 class Config:
-    _defaults: dict[str, Any] = {
+    _defaults: ClassVar[dict[str, Any]] = {
         "ipset_mode": "loaded",
         "check_updates": True,
         "last_strategy": "",
@@ -33,7 +33,9 @@ class Config:
                     saved = json.load(f)
                 self._data.update(saved)
             except Exception as exc:
-                logger.warning("Failed to load config from %s: %s", self.config_file, exc)
+                logger.warning(
+                    "Failed to load config from %s: %s", self.config_file, exc
+                )
 
     def save(self) -> None:
         self.config_dir.mkdir(parents=True, exist_ok=True)
@@ -92,11 +94,13 @@ class Config:
                         backup_file.unlink()
                     ipset_file.rename(backup_file)
                     ipset_file.write_text("", encoding="utf-8")
-        elif mode == "loaded":
-            if backup_file.exists() and backup_file.stat().st_size > 100:
-                if ipset_file.exists():
-                    ipset_file.unlink()
-                backup_file.rename(ipset_file)
+        elif (
+            mode == "loaded"
+            and backup_file.exists()
+            and backup_file.stat().st_size > 100
+        ):
+            ipset_file.unlink(missing_ok=True)
+            backup_file.rename(ipset_file)
 
         self._data["ipset_mode"] = mode
         self.save()

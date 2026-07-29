@@ -1,19 +1,20 @@
-import sys
-import os
 import subprocess
 
+from core.strategy import StrategyParser
+from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import (
-    QMainWindow, QTabWidget, QStatusBar, QVBoxLayout, QWidget,
-    QApplication, QMessageBox,
+    QApplication,
+    QMainWindow,
+    QMessageBox,
+    QStatusBar,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
 )
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QIcon
 
-from .tabs.main_tab import MainTab
 from .tabs.lists_tab import ListsTab
 from .tabs.log_tab import LogTab
-# from .tray import SystemTray  # DEPRECATED: will be removed in 1.3.0
-from core.strategy import Strategy, StrategyParser
+from .tabs.main_tab import MainTab
 
 
 class MainWindow(QMainWindow):
@@ -61,14 +62,17 @@ class MainWindow(QMainWindow):
         if self.platform.is_zapret_installed():
             return
         reply = QMessageBox.question(
-            None, "Zapret not found",
+            None,
+            "Zapret not found",
             "zapret is not installed.\nDownload and install it now?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply == QMessageBox.StandardButton.Yes:
             ok = self.platform.install_zapret(callback=lambda m: print(f"  {m}"))
             if not ok:
-                QMessageBox.warning(None, "Error", "Installation failed. Check the log.")
+                QMessageBox.warning(
+                    None, "Error", "Installation failed. Check the log."
+                )
 
     def _load_strategies(self):
         strategies_dir = self.platform.strategies_dir
@@ -102,9 +106,7 @@ class MainWindow(QMainWindow):
             config=self.config,
             list_manager=self.list_manager,
         )
-        self.main_tab.set_strategies(
-            [(name, sid) for name, sid in self.strategy_list]
-        )
+        self.main_tab.set_strategies([(name, sid) for name, sid in self.strategy_list])
         self.main_tab.set_strategies_dict(self.strategies)
         self.main_tab.start_requested.connect(self._start_strategy)
         self.main_tab.stop_requested.connect(self._stop_strategy)
@@ -129,7 +131,9 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage("Ready")
 
         if self.strategy_list:
-            self.main_tab.set_description(self.strategies[self.strategy_list[0][0]].description)
+            self.main_tab.set_description(
+                self.strategies[self.strategy_list[0][0]].description
+            )
         else:
             self.main_tab.set_description("No strategies found")
 
@@ -283,8 +287,10 @@ class MainWindow(QMainWindow):
         ipset = self.config.get_ipset_mode(str(self.platform.lists_dir))
 
         svc_display = service_status.upper()
-        svc_style = "ok" if service_status == "running" else (
-            "error" if service_status in ("stopped", "not_installed") else "warn"
+        svc_style = (
+            "ok"
+            if service_status == "running"
+            else ("error" if service_status in ("stopped", "not_installed") else "warn")
         )
 
         self.main_tab.set_status("service", svc_display, svc_style)
@@ -319,8 +325,14 @@ class MainWindow(QMainWindow):
             test_file = self.platform.utils_dir / "test zapret.ps1"
             if test_file.exists():
                 subprocess.Popen(
-                    ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
-                     "-File", str(test_file)],
+                    [
+                        "powershell",
+                        "-NoProfile",
+                        "-ExecutionPolicy",
+                        "Bypass",
+                        "-File",
+                        str(test_file),
+                    ],
                     creationflags=0x08000000,
                 )
                 self._log("Tests started in PowerShell")
@@ -335,7 +347,6 @@ class MainWindow(QMainWindow):
         self.activateWindow()
 
     def _quit(self):
-        # self.tray.hide()  # DEPRECATED: will be removed in 1.3.0
         QApplication.instance().quit()
 
     def closeEvent(self, event):
