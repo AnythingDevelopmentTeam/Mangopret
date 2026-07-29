@@ -95,7 +95,7 @@ Mutual exclusion: starting a strategy from GUI kills the service first; starting
 | `gui/strategies/*.strategy` | 27 strategy JSON files (EXP, ALT..ALT12, SIMPLE FAKE, FAKE TLS AUTO, FAKE SPLIT, FAKE+DISORDER, MULTISPLIT, game DISCORD/STEAM/GENERAL) |
 | `lists/` | Domain lists (list-general.txt, list-google.txt, etc.) and IP sets (ipset-all.txt, ipset-exclude.txt) |
 | `bin/` | Pre-built binaries: nfqws, winws.exe, WinDivert, .bin fake packet templates |
-| `silent_install.sh` | Root installer: copies zapret tree to /opt/zapret, runs install_bin.sh + install_prereq.sh |
+| `install.sh` | Downloads latest release from GitHub and installs to /opt/zapret |
 | `run.sh` | Linux CLI launcher: `exec sudo -E python3 main.py "$@"` |
 | `run_gui.sh` | Linux GUI launcher: auto-installs PyQt6, elevates to root, runs main_gui.py |
 | `run.bat` / `run_gui.bat` | Windows launchers with bundled Python detection |

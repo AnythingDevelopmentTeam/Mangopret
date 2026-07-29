@@ -71,7 +71,7 @@ jobs:
           DIST="mangopret-${VERSION}-linux-$(uname -m)"
           mkdir -p "$DIST"
           cp -r gui lists bin .service "$DIST/"
-          cp run.sh run_gui.sh silent_install.sh README.md README.en.md LICENSE.txt "$DIST/"
+          cp run.sh run_gui.sh install.sh README.md README.en.md LICENSE.txt "$DIST/"
           cp -r pip "$DIST/"
           tar czf "${DIST}.tar.gz" "$DIST"
 
