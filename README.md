@@ -1,32 +1,10 @@
 # MangoPret
-
-> **Независимый форк** (ранее — ответвление от zapret-discord-youtube).  
-> Полностью переработан: собственный GUI, CLI, система стратегий, менеджер списков.
-
-Проект основан на [zapret-discord-youtube](https://github.com/Flowseal/zapret-discord-youtube) от [Flowseal](https://github.com/Flowseal).
-
+Основано на [zapret](https://github.com/bol-van/zapret) от [bol-van](https://github.com/bol-van).\
+Стратегии из [zapret-discord-youtube](https://github.com/flowseal/zapret-discord-youtube) от [Flowseal](https://github.com/flowseal)\
+Поддержите разработчика zapret [тут](https://github.com/bol-van/zapret?tab=readme-ov-file#%D0%BF%D0%BE%D0%B4%D0%B4%D0%B5%D1%80%D0%B6%D0%B0%D1%82%D1%8C-%D1%80%D0%B0%D0%B7%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%87%D0%B8%D0%BA%D0%B0)
 > [!CAUTION]
 > ### Фейки
 > Мы не распространяем сборку на других сайтах или репозиториях. У нас нет зеркала на «zapretfreenovirus.com».
-
----
-
-## Возможности
-
-| | |
-|---|---|
-| 🖥️ **GUI** | PyQt6 интерфейс с тёмной, светлой и контрастной темами |
-| ⌨️ **CLI** | Полноценное управление через терминал |
-| 🧠 **27+ стратегий** | EXP, ALT1–12, FAKE, SPLIT, DISORDER, MULTISPLIT, игровые |
-| 🔧 **Мастер стратегий** | Конвертация `.bat` → `.strategy`, автообновление из репозитория |
-| 📋 **Редактор списков** | Домены (`list-*.txt`) и IP (`ipset-*.txt`) с split-pane |
-| 🔄 **Автообновление** | IPSet, hosts, стратегии — одной командой |
-| ⚙️ **Systemd сервис** | Установка, запуск, стоп, автостарт, логи |
-| 🧹 **iptables** | NFQUEUE правила, очистка при падении, emergency fix |
-| 🪟 **Windows** | Полноценная поддержка WinDivert + WinDivert hide |
-| 🔔 **Tray** | Системный трей с быстрыми действиями |
-| 🎯 **CLI автодополнение** | Bash/Zsh/Fish (через argcomplete) |
-| 📊 **Диагностика** | Проверка конфликтов (BFE, Adguard, прокси) |
 
 ---
 
@@ -34,6 +12,15 @@
 
 ### Linux
 
+```bash
+# beta версия
+curl -sSL https://raw.githubusercontent.com/AnythingDevelopmentTeam/Mangopret/main/install.sh | sudo bash
+```
+Стабильная версия
+```bash
+https://github.com/AnythingDevelopmentTeam/Mangopret/releases/latest
+```
+# Использование
 ```bash
 # GUI (автоустановка зависимостей, повышение прав)
 ./run_gui.sh
@@ -96,17 +83,6 @@ run.bat stop
 ## Темы
 
 Переключение в настройках GUI или через `config.json` (`theme: dark | light | contrast`).
-
----
-
-## CLI автодополнение
-
-```bash
-pip install mangopret[completion]
-./run.sh completion bash > /etc/bash_completion.d/mangopret
-./run.sh completion zsh  > /usr/share/zsh/vendor-completions/_mangopret
-./run.sh completion fish > ~/.config/fish/completions/mangopret.fish
-```
 
 ---
 
@@ -179,5 +155,3 @@ MIT — [LICENSE.txt](./LICENSE.txt)
 ## Благодарности
 
 [![Contributors](https://contrib.rocks/image?repo=AnythingDevelopmentTeam/mangopret)](https://github.com/AnythingDevelopmentTeam/mangopret/graphs/contributors)
-
-💖 Благодарность [Flowseal](https://github.com/Flowseal) — автору zapret-discord-youtube
