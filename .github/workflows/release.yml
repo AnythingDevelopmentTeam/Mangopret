@@ -18,48 +18,6 @@ permissions:
   contents: write
 
 jobs:
-  build-windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v7.0.1
-
-      - name: Download and bundle portable Python
-        shell: pwsh
-        run: |
-          $assets = (Invoke-RestMethod "https://api.github.com/repos/astral-sh/python-build-standalone/releases/latest").assets
-          $asset = $assets | Where-Object { $_.name -match 'cpython-3\.11.*x86_64-pc-windows-msvc-install_only\.tar\.gz' } | Select-Object -First 1
-          if (-not $asset) { throw "No matching Python asset found" }
-          $out = "$env:RUNNER_TEMP\python.tar.gz"
-          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $out
-          New-Item -ItemType Directory -Force "$env:RUNNER_TEMP\python-dist"
-          tar -xzf $out -C "$env:RUNNER_TEMP\python-dist"
-          $py = Get-ChildItem "$env:RUNNER_TEMP\python-dist" -Recurse -Filter python.exe | Select-Object -First 1
-          if (-not $py) { throw "python.exe not found in portable dist" }
-          echo "PYTHON_DIR=$($py.Directory.FullName)" >> $env:GITHUB_ENV
-
-      - name: Bundle portable app
-        shell: pwsh
-        run: |
-          $V = "$env:VERSION"
-          $dist = "mangopret-${V}-win64"
-          New-Item -ItemType Directory -Force "$dist" | Out-Null
-          $pyDir = "$env:PYTHON_DIR"
-          if (-not (Test-Path $pyDir)) { throw "PYTHON_DIR '$pyDir' not found" }
-          $pyDst = "$dist\python"
-          New-Item -ItemType Directory -Force $pyDst | Out-Null
-          Get-ChildItem -Path $pyDir | Copy-Item -Destination $pyDst -Recurse -Force
-          Copy-Item "gui" "$dist\" -Recurse -Force
-          Copy-Item "lists" "$dist\" -Recurse -Force
-          Copy-Item "bin" "$dist\" -Recurse -Force
-          Copy-Item "pip" "$dist\" -Recurse -Force
-          Copy-Item "run.bat", "run_gui.bat", "install.sh", "README.md", "README.en.md", "LICENSE.txt" "$dist\"
-          Compress-Archive -Path "$dist\*" -DestinationPath "$dist.zip" -Force
-
-      - uses: actions/upload-artifact@v7.0.1
-        with:
-          name: win64-bundle
-          path: mangopret-${{ env.VERSION }}-win64.zip
-
   build-linux:
     runs-on: ubuntu-latest
     steps:
@@ -81,22 +39,39 @@ jobs:
           mv mangopret-*.AppImage . 2>/dev/null || true
           ls -la
 
+      - name: Build Windows portable zip
+        run: |
+          sudo apt-get install -y -qq zip
+          LATEST=$(curl -sSL "https://api.github.com/repos/astral-sh/python-build-standalone/releases/latest")
+          PY_URL=$(echo "$LATEST" | grep -oP '"browser_download_url":\s*"\K[^"]*cpython-3\.11[^"]*x86_64-pc-windows-msvc-install_only\.tar\.gz' | head -1)
+          curl -#SL -o /tmp/python.tar.gz "$PY_URL"
+          mkdir -p /tmp/python-dist
+          tar xzf /tmp/python.tar.gz -C /tmp/python-dist
+          PY_DIR=$(find /tmp/python-dist -name python.exe -printf '%h\n' | head -1)
+          DIST="mangopret-${VERSION}-win64"
+          mkdir -p "$DIST/python"
+          cp -r "$PY_DIR"/* "$DIST/python/"
+          cp -r gui lists bin pip "$DIST/"
+          cp run.bat run_gui.bat install.sh README.md README.en.md LICENSE.txt "$DIST/"
+          cd "$DIST" && zip -r "../${DIST}.zip" . && cd ..
+
       - uses: actions/upload-artifact@v7.0.1
         with:
           name: linux-bundle
           path: |
             mangopret-*.tar.gz
             mangopret-*.AppImage
+            mangopret-*.zip
 
   release:
-    needs: [build-windows, build-linux]
+    needs: [build-linux]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v8.0.1
 
       - name: Compute SHA256
         run: |
-          sha256sum win64-bundle/*.zip linux-bundle/*.tar.gz linux-bundle/*.AppImage > checksums.txt
+          sha256sum linux-bundle/*.tar.gz linux-bundle/*.AppImage linux-bundle/*.zip > checksums.txt
           cat checksums.txt
 
       - name: Create Release
@@ -105,9 +80,9 @@ jobs:
           tag_name: ${{ env.VERSION }}
           name: ${{ env.VERSION }}
           files: |
-            win64-bundle/*.zip
             linux-bundle/*.tar.gz
             linux-bundle/*.AppImage
+            linux-bundle/*.zip
             checksums.txt
           generate_release_notes: true
 
