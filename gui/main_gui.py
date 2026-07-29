@@ -60,29 +60,6 @@ def _start_server(parent_window) -> QLocalServer | None:
     return server
 
 
-_REQUIRES_ROOT = (
-    frozenset()
-)  # DEPRECATED: will be removed in 1.3.0 (root elevation removed)
-
-
-def _relaunch_elevated(args: list[str]) -> bool:
-    return True  # DEPRECATED: will be removed in 1.3.0
-
-
-def _run_pending(window) -> None:
-    data = window.config.get("_pending_root_action")
-    if not data:
-        return
-    action = data.get("action")
-    payload = data.get("payload", {})
-    window.config.set("_pending_root_action", None)
-    _dispatch(window, action, payload)
-
-
-def _dispatch(window, action: str, payload: dict) -> None:
-    pass  # DEPRECATED: will be removed in 1.3.0 (root elevation dispatch removed)
-
-
 def _handle_sigint(sig, frame) -> None:
     from PyQt6.QtCore import QTimer
 
@@ -130,9 +107,6 @@ def main() -> None:
             window.hide()
         else:
             window.show()
-
-        if platform.IS_ROOT:
-            _run_pending(window)
 
         sys.exit(app.exec())
 

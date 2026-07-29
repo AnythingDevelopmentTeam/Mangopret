@@ -24,7 +24,6 @@ class MainTab(QWidget):
     refresh_requested = pyqtSignal()
     test_requested = pyqtSignal()
     log_signal = pyqtSignal(str)
-    startup_changed = pyqtSignal(bool)
 
     def __init__(self, platform=None, config=None, list_manager=None, parent=None):
         super().__init__(parent)
@@ -68,8 +67,6 @@ class MainTab(QWidget):
         self._build_status(layout)
 
         self._build_strategy(layout)
-
-        self._build_startup_ui(layout)
 
         self._build_updates_ui(layout)
 
@@ -202,22 +199,11 @@ class MainTab(QWidget):
             un_row.addStretch()
             g_layout.addLayout(un_row)
 
-            # DEPRECATED: will be removed in 1.3.0 (autostart checkbox removed)
-            # boot_row = QHBoxLayout()
-            # self.chk_autostart = QCheckBox("Enable on boot")
-            # self.chk_autostart.clicked.connect(self._toggle_autostart)
-            # boot_row.addWidget(self.chk_autostart)
-            # boot_row.addStretch()
-            # g_layout.addLayout(boot_row)
-
             self.svc_status_label = QLabel("")
             self.svc_status_label.setObjectName("subHeaderLabel")
             g_layout.addWidget(self.svc_status_label)
 
         layout.addWidget(group)
-
-    def _build_startup_ui(self, layout):
-        pass  # DEPRECATED: will be removed in 1.3.0
 
     def _build_updates_ui(self, layout):
         group = QGroupBox("Updates")
@@ -312,10 +298,6 @@ class MainTab(QWidget):
         if enabled:
             parts.append("Auto-start: ON")
         self.svc_status_label.setText(" | ".join(parts))
-        # self.chk_autostart.setChecked(enabled)  # DEPRECATED: will be removed in 1.3.0
-
-    def refresh_startup_status(self):
-        pass  # DEPRECATED: will be removed in 1.3.0
 
     def _on_start(self):
         name = self.get_selected_strategy()
@@ -407,12 +389,6 @@ class MainTab(QWidget):
         else:
             self.diag_text.append("Zapret not found")
         self.refresh_service_status()
-
-    def _toggle_autostart(self):
-        pass  # DEPRECATED: will be removed in 1.3.0
-
-    def _toggle_startup(self):
-        pass  # DEPRECATED: will be removed in 1.3.0
 
     def _update_ipset(self):
         if not self.list_manager:

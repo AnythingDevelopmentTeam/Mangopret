@@ -36,7 +36,6 @@ class MainWindow(QMainWindow):
         self._ensure_zapret()
         self._load_strategies()
         self._build_ui()
-        self._setup_tray()
         self._setup_timer()
         self._refresh_status()
 
@@ -46,15 +45,6 @@ class MainWindow(QMainWindow):
             if idx >= 0:
                 self.strategy_combo.setCurrentIndex(idx)
                 self._on_strategy_changed(idx)
-
-    def _require_root(self, action, payload=None):
-        return True  # DEPRECATED: will be removed in 1.3.0 (root elevation removed)
-
-    def _elevate_linux(self, action, payload=None):
-        pass  # DEPRECATED: will be removed in 1.3.0
-
-    def _elevate_windows(self, action, payload=None):
-        pass  # DEPRECATED: will be removed in 1.3.0
 
     def _ensure_zapret(self):
         if self.platform.is_windows:
@@ -137,9 +127,6 @@ class MainWindow(QMainWindow):
         else:
             self.main_tab.set_description("No strategies found")
 
-    def _setup_tray(self):
-        pass  # DEPRECATED: will be removed in 1.3.0 (system tray removed)
-
     def _setup_timer(self):
         self._status_timer = QTimer(self)
         self._status_timer.timeout.connect(self._refresh_status)
@@ -159,9 +146,6 @@ class MainWindow(QMainWindow):
             name = self.main_tab.get_selected_strategy()
 
         if not name or name not in self.strategies:
-            return
-
-        if not self._require_root("start", {"strategy": name}):
             return
 
         if self.platform.is_linux:
@@ -205,9 +189,7 @@ class MainWindow(QMainWindow):
             if ok:
                 self.active_strategy_name = name
                 self.main_tab.set_active(True, name)
-                # self.tray.set_active(True, name)  # DEPRECATED: will be removed in 1.3.0
                 self.status_bar.showMessage(f"Active: {name}")
-                # self.tray.show_message("Mangopret", f"Service started: {name}")  # DEPRECATED: will be removed in 1.3.0
                 self._log(f"Service started: {name}")
             else:
                 self._log(f"FAILED to start service: {err}")
@@ -219,9 +201,7 @@ class MainWindow(QMainWindow):
                 if ok2:
                     self.active_strategy_name = name
                     self.main_tab.set_active(True, name)
-                    # self.tray.set_active(True, name)  # DEPRECATED: will be removed in 1.3.0
                     self.status_bar.showMessage(f"Active: {name}")
-                    # self.tray.show_message("Mangopret", f"Service started: {name}")  # DEPRECATED: will be removed in 1.3.0
                     self._log(f"Service started: {name}")
                 else:
                     self._log(f"FAILED to start service: {err2}")
@@ -241,13 +221,10 @@ class MainWindow(QMainWindow):
             self.platform.service_stop()
             self.active_strategy_name = ""
             self.main_tab.set_active(False)
-            # self.tray.set_active(False)  # DEPRECATED: will be removed in 1.3.0
             self.status_bar.showMessage("Process crashed on startup")
         QTimer.singleShot(500, self._refresh_status)
 
     def _stop_strategy(self):
-        if not self._require_root("stop"):
-            return
         self._log("Stopping service...")
         ok, err = self.platform.service_stop()
         if not ok:
@@ -257,30 +234,9 @@ class MainWindow(QMainWindow):
             return
         self.active_strategy_name = ""
         self.main_tab.set_active(False)
-        # self.tray.set_active(False)  # DEPRECATED: will be removed in 1.3.0
         self.status_bar.showMessage("Stopped")
         self._log("Service stopped")
         QTimer.singleShot(1000, self._refresh_status)
-
-    def _install_service_from_payload(self, payload):
-        name = payload.get("strategy") or self.main_tab.get_selected_strategy()
-        if name and name in self.strategies:
-            self._create_service_for(name)
-
-    def _remove_service_confirm(self):
-        self._remove_service_for(self.main_tab.get_selected_strategy())
-
-    def _set_autostart_force(self, enabled):
-        pass  # DEPRECATED: will be removed in 1.3.0 (autostart removed)
-
-    def _install_zapret_root(self):
-        pass  # DEPRECATED: will be removed in 1.3.0 (root elevation removed)
-
-    def _update_ipset_root(self):
-        pass  # DEPRECATED: will be removed in 1.3.0 (root elevation removed)
-
-    def _update_hosts_root(self):
-        pass  # DEPRECATED: will be removed in 1.3.0 (root elevation removed)
 
     def _refresh_status(self):
         service_status = self.platform.get_service_status()
@@ -298,18 +254,15 @@ class MainWindow(QMainWindow):
 
         self.main_tab.set_ipset(ipset)
         self.main_tab.refresh_service_status()
-        self.main_tab.refresh_startup_status()
 
         if service_status == "running" and self.active_strategy_name:
             pass
         elif service_status == "running" and not self.active_strategy_name:
             self.main_tab.set_active(True)
-            # self.tray.set_active(True)  # DEPRECATED: will be removed in 1.3.0
         elif service_status != "running" and self.active_strategy_name:
             self.active_strategy_name = ""
             self._pending_start_name = ""
             self.main_tab.set_active(False)
-            # self.tray.set_active(False)  # DEPRECATED: will be removed in 1.3.0
             self.status_bar.showMessage("Service stopped")
 
     def _log(self, message: str):
@@ -350,6 +303,5 @@ class MainWindow(QMainWindow):
         QApplication.instance().quit()
 
     def closeEvent(self, event):
-        # DEPRECATED: will be removed in 1.3.0 (minimize_to_tray removed)
         self._quit()
         event.accept()

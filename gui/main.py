@@ -390,10 +390,6 @@ def cmd_completion(args: argparse.Namespace) -> None:
         sys.exit(1)
 
 
-def cmd_autostart(args: argparse.Namespace) -> None:
-    print("Autostart management is disabled.")  # DEPRECATED: will be removed in 1.3.0
-
-
 def cmd_version(args: argparse.Namespace) -> None:
     from core.update import check_mangopret_update
 
@@ -475,9 +471,6 @@ def main() -> None:
 
     sub.add_parser("version", help="Show version and check for updates")
 
-    p_autostart = sub.add_parser("autostart", help="Manage login autostart")
-    p_autostart.add_argument("action", choices=["enable", "disable", "status"])
-
     try:
         import argcomplete
     except ImportError:
@@ -517,7 +510,6 @@ def main() -> None:
         "lists": cmd_lists,
         "diagnostics": cmd_diagnostics,
         "convert": cmd_convert,
-        "autostart": cmd_autostart,
         "completion": cmd_completion,
     }
 
