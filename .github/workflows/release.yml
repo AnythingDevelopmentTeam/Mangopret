@@ -48,3 +48,30 @@ jobs:
             linux-bundle/*.tar.gz
             checksums.txt
           generate_release_notes: true
+
+      - name: Compute hash for checkupdate
+        id: hash
+        run: |
+          HASH=$(sha256sum linux-bundle/*.tar.gz | cut -d' ' -f1 | head -1)
+          echo "hash=${HASH:-placeholder}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+
+      - name: Update checkupdate file
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          printf '%s\n' \
+            "# Mangopret Update Check" \
+            "LAST_VERSION = \"${VERSION}\"" \
+            "VERSION_HASH = \"${{ steps.hash.outputs.hash }}\"" \
+            > checkupdate
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add checkupdate
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update checkupdate to v${VERSION}"
+            git push
+          fi
