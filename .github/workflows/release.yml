@@ -26,9 +26,13 @@ jobs:
       - name: Download embeddable Python
         shell: pwsh
         run: |
-          $url = "https://github.com/astral-sh/python-build-standalone/releases/download/20260728/cpython-3.11.15+20260728-x86_64-pc-windows-msvc-install_only.tar.gz"
+          $tag = (Invoke-RestMethod "https://api.github.com/repos/astral-sh/python-build-standalone/releases/latest").tag_name
+          $assets = Invoke-RestMethod "https://api.github.com/repos/astral-sh/python-build-standalone/releases/latest" | Select-Object -ExpandProperty assets
+          $asset = $assets | Where-Object { $_.name -match 'cpython-3\.11.*x86_64-pc-windows-msvc-install_only\.tar\.gz' } | Select-Object -First 1
+          if (-not $asset) { throw "No matching Python asset found" }
           $out = "$env:RUNNER_TEMP\python.tar.gz"
-          Invoke-WebRequest -Uri $url -OutFile $out
+          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $out
+          New-Item -ItemType Directory -Force "$env:RUNNER_TEMP\python-dist"
           tar -xzf $out -C "$env:RUNNER_TEMP\python-dist"
           $py = Get-ChildItem "$env:RUNNER_TEMP\python-dist" -Recurse -Filter python.exe | Select-Object -First 1
           if (-not $py) { throw "python.exe not found in portable dist" }
