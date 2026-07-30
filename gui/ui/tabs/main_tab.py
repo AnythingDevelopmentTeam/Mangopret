@@ -163,22 +163,6 @@ class MainTab(QWidget):
         row.addWidget(self.strategy_combo, 1)
         g_layout.addLayout(row)
 
-        ver_row = QHBoxLayout()
-        ver_row.addWidget(QLabel("Zapret version:"))
-        self.zapret_version_combo = QComboBox()
-        self.zapret_version_combo.addItem("zapret1 (nfqws)", "1")
-        self.zapret_version_combo.addItem("zapret2 (nfqws2)", "2")
-        self.zapret_version_combo.currentIndexChanged.connect(
-            self._on_zapret_version_changed
-        )
-        current_ver = self.config.get("zapret_version", "1") if self.config else "1"
-        idx = self.zapret_version_combo.findData(current_ver)
-        if idx >= 0:
-            self.zapret_version_combo.setCurrentIndex(idx)
-        ver_row.addWidget(self.zapret_version_combo)
-        ver_row.addStretch()
-        g_layout.addLayout(ver_row)
-
         opts_row = QHBoxLayout()
         self.auto_hostlist_cb = QPushButton("Auto-Hostlist")
         self.auto_hostlist_cb.setCheckable(True)
@@ -368,11 +352,6 @@ class MainTab(QWidget):
         if btn:
             self.ipset_changed.emit(btn.property("ipset_value"))
 
-    def _on_zapret_version_changed(self, idx):
-        ver = self.zapret_version_combo.itemData(idx)
-        if self.config and ver:
-            self.config.set("zapret_version", ver)
-
     def _on_auto_hostlist(self):
         val = self.auto_hostlist_cb.isChecked()
         if self.config:
@@ -382,9 +361,6 @@ class MainTab(QWidget):
         val = self.ipcache_cb.isChecked()
         if self.config:
             self.config.set("ipcache", val)
-
-    def get_zapret_version(self) -> str:
-        return str(self.zapret_version_combo.currentData())
 
     def _get_active_strategy(self):
         name = self.get_selected_strategy()
@@ -399,8 +375,7 @@ class MainTab(QWidget):
         if not strategy:
             QMessageBox.warning(self, "Error", "Select a strategy first")
             return
-        zapver = self.get_zapret_version()
-        ok = self.platform.create_systemd_service(strategy, name, zapret_version=zapver)
+        ok = self.platform.create_systemd_service(strategy, name)
         if ok:
             self.diag_text.append(f"Service installed/updated: {name}")
             self.log_signal.emit(f"Service installed/updated: {name}")
@@ -443,7 +418,7 @@ class MainTab(QWidget):
             "Confirm",
             "Remove zapret completely?\n\n"
             "This will:\n"
-            "  • Stop nfqws and clean iptables\n"
+            "  • Stop nfqws2 and clean iptables\n"
             "  • Remove systemd service\n"
             "  • Delete /opt/zapret\n\n"
             "Continue?",

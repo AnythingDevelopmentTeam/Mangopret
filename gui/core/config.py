@@ -18,7 +18,6 @@ class Config:
         "theme": "dark",
         "nfqueue_num": "200",
         "linux_zapret_path": "",
-        "zapret_version": "1",
         "auto_hostlist": False,
         "ipcache": False,
     }

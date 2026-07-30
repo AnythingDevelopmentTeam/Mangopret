@@ -1,6 +1,5 @@
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -15,19 +14,12 @@ from core.log import get_logger
 
 logger = get_logger(__name__)
 
-ZAPRET_VERSION = "72.13"
+ZAPRET_VERSION = "1.0.3"
 ZAPRET_URL = (
-    f"https://github.com/bol-van/zapret/releases/download/"
-    f"v{ZAPRET_VERSION}/zapret-v{ZAPRET_VERSION}.tar.gz"
+    f"https://github.com/bol-van/zapret2/releases/download/"
+    f"v{ZAPRET_VERSION}/zapret2-v{ZAPRET_VERSION}.tar.gz"
 )
 ZAPRET_DIR = Path("/opt/zapret")
-
-ZAPRET2_VERSION = "1.0.3"
-ZAPRET2_URL = (
-    f"https://github.com/bol-van/zapret2/releases/download/"
-    f"v{ZAPRET2_VERSION}/zapret2-v{ZAPRET2_VERSION}.tar.gz"
-)
-ZAPRET2_DIR = Path("/opt/zapret2")
 
 _WIN_CREATE_NO_WINDOW = 0x08000000
 _WIN_BELOW_NORMAL_PRIORITY = 0x00008000
@@ -39,21 +31,15 @@ class PlatformInfo:
 
     IS_ROOT: bool = sys.platform != "win32" and os.geteuid() == 0
 
-    def __init__(self, base_dir: str, zapret_version: str = "1") -> None:
+    def __init__(self, base_dir: str) -> None:
         self.base_dir = Path(base_dir)
         self.bin_dir = self.base_dir / "bin"
         self.lists_dir = self.base_dir / "lists"
         self.utils_dir = self.base_dir / "utils"
         self.strategies_dir = self.base_dir / "strategies"
         self.config_dir = self._get_config_dir()
-        self.zapret_version = zapret_version
-
-        if zapret_version == "2":
-            self.zapret_dir = ZAPRET2_DIR
-            self._binary_name = "nfqws2" if not self.is_windows else "winws2.exe"
-        else:
-            self.zapret_dir = ZAPRET_DIR
-            self._binary_name = "nfqws" if not self.is_windows else "winws.exe"
+        self.zapret_dir = ZAPRET_DIR
+        self._binary_name = "nfqws2" if not self.is_windows else "winws2.exe"
 
         if self.is_windows:
             self.binary = self.bin_dir / self._binary_name
@@ -62,59 +48,20 @@ class PlatformInfo:
 
     @property
     def _service_unit_name(self) -> str:
-        return "mangopret2.service" if self.zapret_version == "2" else "zapret.service"
+        return "mangopret2.service"
 
     def _resolve_binary(self) -> None:
-        if self.zapret_version == "2":
-            candidates = [
-                self.zapret_dir / "nfq2" / "nfqws2",
-                self.zapret_dir / "bin" / "nfqws2",
-                self.zapret_dir / "binaries" / "linux-x86_64" / "nfqws2",
-                self.bin_dir / "nfqws2",
-            ]
-        else:
-            candidates = [
-                self.zapret_dir / "nfq" / "nfqws",
-                self.zapret_dir / "bin" / "nfqws",
-                self.zapret_dir / "binaries" / "linux-x86_64" / "nfqws",
-                self.bin_dir / "nfqws",
-            ]
+        candidates = [
+            self.zapret_dir / "nfq2" / "nfqws2",
+            self.zapret_dir / "bin" / "nfqws2",
+            self.zapret_dir / "binaries" / "linux-x86_64" / "nfqws2",
+            self.bin_dir / "nfqws2",
+        ]
         for c in candidates:
             if c.exists():
                 self.binary = c
                 return
         self.binary = candidates[0]
-
-    def _link_zapret_binaries(self, zapret_base: Path) -> None:
-        binaries = zapret_base / "binaries"
-        arch_map = [
-            binaries / "linux-x86_64",
-            binaries / "linux-x86",
-            binaries / "linux-arm64",
-            binaries / "linux-arm",
-        ]
-        for arch_dir in arch_map:
-            ip2net_bin = arch_dir / "ip2net"
-            if ip2net_bin.exists() and os.access(str(ip2net_bin), os.X_OK):
-                for name, link_dir in (
-                    ("ip2net", "ip2net"),
-                    ("mdig", "mdig"),
-                    ("nfqws", "nfq"),
-                    ("tpws", "tpws"),
-                ):
-                    src = arch_dir / name
-                    if not src.exists():
-                        continue
-                    dst = zapret_base / link_dir
-                    dst.mkdir(parents=True, exist_ok=True)
-                    link = dst / name
-                    if link.exists():
-                        link.unlink()
-                    rel = os.path.relpath(src, dst)
-                    link.symlink_to(rel)
-                    logger.info("linked %s -> %s", rel, link)
-                return
-        logger.warning("No compatible binaries found in %s", binaries)
 
     def _get_config_dir(self) -> Path:
         if self.is_windows:
@@ -133,11 +80,7 @@ class PlatformInfo:
     def is_zapret_installed(self) -> bool:
         if self.is_windows:
             return True
-        if self.zapret_version == "2":
-            return (self.zapret_dir / "install_easy.sh").exists()
-        return (self.zapret_dir / "install_easy.sh").exists() or (
-            self.zapret_dir / "config"
-        ).exists()
+        return (self.zapret_dir / "install_easy.sh").exists()
 
     def ensure_zapret(self, callback: Callable[[str], None] | None = None) -> bool:
         if self.is_zapret_installed():
@@ -151,8 +94,6 @@ class PlatformInfo:
             if callback:
                 callback("Zapret is already bundled — nothing to install.")
             return True
-        if self.zapret_version == "2":
-            return self._install_zapret2_linux(callback)
         return self._install_zapret_linux(callback)
 
     @staticmethod
@@ -173,20 +114,7 @@ class PlatformInfo:
             url=ZAPRET_URL,
             version_label=f"zapret v{ZAPRET_VERSION}",
             archive_name="zapret.tar.gz",
-            dir_prefix="zapret",
-            has_config=True,
-            callback=callback,
-        )
-
-    def _install_zapret2_linux(
-        self, callback: Callable[[str], None] | None = None
-    ) -> bool:
-        return self._install_zapret_common(
-            url=ZAPRET2_URL,
-            version_label=f"zapret2 v{ZAPRET2_VERSION}",
-            archive_name="zapret2.tar.gz",
             dir_prefix="zapret2",
-            has_config=False,
             callback=callback,
         )
 
@@ -196,7 +124,6 @@ class PlatformInfo:
         version_label: str,
         archive_name: str,
         dir_prefix: str,
-        has_config: bool,
         callback: Callable[[str], None] | None = None,
     ) -> bool:
         tmpdir: Path | None = None
@@ -255,49 +182,11 @@ class PlatformInfo:
             if not ipban_file.exists():
                 ipban_file.touch()
 
-            if has_config:
-                config_file = target / "config"
-                if not config_file.exists():
-                    default_config = target / "config.default"
-                    if default_config.exists():
-                        shutil.copy2(default_config, config_file)
-
-                config_content = config_file.read_text() if config_file.exists() else ""
-                if "FWTYPE=" not in config_content:
-                    try:
-                        r = subprocess.run(
-                            ["which", "nft"],
-                            capture_output=True,
-                            timeout=5,
-                            check=False,
-                        )
-                        fwtype = "nftables" if r.returncode == 0 else "iptables"
-                    except Exception:
-                        fwtype = "nftables"
-                    with open(config_file, "a") as f:
-                        f.write(f"FWTYPE={fwtype}\n")
-
             if self._is_atomic_system():
-                atomic_installer = self.base_dir / "install_bin_atomic.sh"
-                if atomic_installer.exists():
-                    if callback:
-                        callback(
-                            "Atomic system detected — running install_bin_atomic.sh ..."
-                        )
-                    subprocess.run(
-                        ["bash", str(atomic_installer)],
-                        cwd=str(target),
-                        capture_output=True,
-                        text=True,
-                        timeout=120,
-                        check=False,
+                if callback:
+                    callback(
+                        "Atomic system detected — install_bin_atomic.sh not found, creating symlinks directly"
                     )
-                else:
-                    if callback:
-                        callback(
-                            "Atomic system detected — install_bin_atomic.sh not found, creating symlinks directly"
-                        )
-                    self._link_zapret_binaries(target)
             else:
                 if callback:
                     callback("Detecting architecture and linking binaries ...")
@@ -309,38 +198,6 @@ class PlatformInfo:
                     timeout=120,
                     check=False,
                 )
-
-                if has_config:
-                    if callback:
-                        callback("Installing prerequisites ...")
-                    try:
-                        config_file = target / "config"
-                        fwtype = "nftables"
-                        if config_file.exists():
-                            for line in config_file.read_text().splitlines():
-                                if line.startswith("FWTYPE="):
-                                    fwtype = line.split("=", 1)[1].strip()
-                                    break
-                        env = os.environ.copy()
-                        env["ZAPRET_BASE"] = str(target)
-                        env["FWTYPE"] = fwtype
-                        proc = subprocess.run(
-                            ["bash", str(target / "install_prereq.sh")],
-                            cwd=str(target),
-                            env=env,
-                            capture_output=True,
-                            text=True,
-                            timeout=300,
-                            check=False,
-                        )
-                        if callback:
-                            for line in proc.stdout.splitlines():
-                                callback(line)
-                        if proc.returncode != 0 and callback:
-                            callback("WARNING: some prerequisites may not be installed")
-                    except Exception as exc:
-                        if callback:
-                            callback(f"WARNING: prerequisites install failed: {exc}")
 
             if callback:
                 callback("Setting permissions ...")
@@ -355,7 +212,7 @@ class PlatformInfo:
                 timeout=30,
                 check=False,
             )
-            for pattern in ("ip2net", "nfqws", "nfqws2", "tpws", "mdig"):
+            for pattern in ("ip2net", "nfqws2", "tpws", "mdig"):
                 for f in (target / "binaries").rglob(pattern):
                     f.chmod(0o755)
             for script in (
@@ -417,7 +274,7 @@ class PlatformInfo:
 
     def is_process_running(self, name: str | None = None) -> bool:
         if name is None:
-            name = "winws.exe" if self.is_windows else "nfqws"
+            name = "winws2.exe" if self.is_windows else "nfqws2"
         try:
             if self.is_windows:
                 r = subprocess.run(
@@ -443,13 +300,13 @@ class PlatformInfo:
     def kill_all(self) -> None:
         if self.is_windows:
             subprocess.run(
-                ["taskkill", "/IM", "winws.exe", "/F"],
+                ["taskkill", "/IM", "winws2.exe", "/F"],
                 capture_output=True,
                 creationflags=_WIN_CREATE_NO_WINDOW,
                 check=False,
             )
         else:
-            subprocess.run(["pkill", "-f", "nfqws"], capture_output=True, check=False)
+            subprocess.run(["pkill", "-f", "nfqws2"], capture_output=True, check=False)
 
     # ------------------------------------------------------------------ service
 
@@ -525,91 +382,12 @@ class PlatformInfo:
             logger.debug("systemd enabled check failed: %s", exc)
             return False
 
-    def create_systemd_service(
-        self, strategy, strategy_name: str = "", zapret_version: str = ""
-    ) -> bool:
+    def create_systemd_service(self, strategy, strategy_name: str = "") -> bool:
         if not self.is_linux:
             return False
-        if not zapret_version:
-            zapret_version = self.zapret_version
-        if zapret_version == "2":
-            return self._create_systemd_service_zapret2(strategy, strategy_name)
-        try:
-            nfqws_opt = self._build_nfqws_opt(strategy)
-            wf_tcp = strategy.wf_tcp
-            wf_udp = strategy.wf_udp
-            config_path = self.zapret_dir / "config"
-            existing = (
-                config_path.read_text(encoding="utf-8") if config_path.exists() else ""
-            )
+        return self._create_systemd_service(strategy, strategy_name)
 
-            def _replace_or_append(lines: list[str], key: str, value: str) -> None:
-                found = False
-                for i, line in enumerate(lines):
-                    stripped = line.strip()
-                    if stripped.startswith((f"{key}=", f"{key} ")):
-                        lines[i] = f"{key}={value}\n"
-                        found = True
-                        break
-                if not found:
-                    lines.append(f"{key}={value}\n")
-
-            if existing:
-                lines = existing.splitlines(keepends=True)
-            else:
-                lines = [
-                    "# Mangopret-managed zapret config\n",
-                    "SET_MAXELEM=522288\n",
-                    'IPSET_OPT="hashsize 262144 maxelem $SET_MAXELEM"\n',
-                    "DESYNC_MARK=0x40000000\n",
-                    "DESYNC_MARK_POSTNAT=0x20000000\n",
-                    "DISABLE_IPV6=1\n",
-                    "INIT_APPLY_FW=1\n",
-                    "FWTYPE=nftables\n",
-                ]
-
-            _replace_or_append(lines, "NFQWS_ENABLE", "1")
-            _replace_or_append(lines, "NFQWS_PORTS_TCP", wf_tcp)
-            _replace_or_append(lines, "NFQWS_PORTS_UDP", wf_udp)
-            _replace_or_append(lines, "MODE_FILTER", "none")
-            _replace_or_append(lines, "TPWS_ENABLE", "0")
-            _replace_or_append(lines, "TPWS_SOCKS_ENABLE", "0")
-            _replace_or_append(lines, "FILTER_TTL_EXPIRED_ICMP", "1")
-
-            nfqws_opt_escaped = f'"\n{nfqws_opt}\n"'
-            nfqws_opt_line = f"NFQWS_OPT={nfqws_opt_escaped}"
-            in_nfqws_opt = False
-            new_lines: list[str] = []
-            for line in lines:
-                stripped = line.strip()
-                if stripped.startswith(("NFQWS_OPT=", "NFQWS_OPT ")):
-                    in_nfqws_opt = True
-                    new_lines.append(nfqws_opt_line + "\n")
-                    continue
-                if in_nfqws_opt:
-                    if stripped.startswith('"') and not stripped.startswith("NFQWS"):
-                        in_nfqws_opt = False
-                        continue
-                    if stripped.endswith('"'):
-                        in_nfqws_opt = False
-                        continue
-                    continue
-                new_lines.append(line)
-
-            if not any(l.strip().startswith("NFQWS_OPT=") for l in new_lines):
-                new_lines.append(nfqws_opt_line + "\n")
-
-            config_path.write_text("".join(new_lines), encoding="utf-8")
-            logger.info("Wrote config to %s", config_path)
-
-            self._sync_ipset_files(strategy)
-            self._install_zapret_service_unit(strategy_name)
-            return True
-        except Exception as exc:
-            logger.error("Failed to create systemd service: %s", exc)
-            return False
-
-    def _create_systemd_service_zapret2(self, strategy, strategy_name: str) -> bool:
+    def _create_systemd_service(self, strategy, strategy_name: str) -> bool:
         try:
             qnum = self._get_config_value("nfqueue_num", "200")
             auto_hostlist = self._get_config_value("auto_hostlist", "False") == "True"
@@ -620,7 +398,6 @@ class PlatformInfo:
                 str(self.bin_dir),
                 str(self.lists_dir),
                 False,
-                zapret_version="2",
                 auto_hostlist=auto_hostlist,
                 ipcache=ipcache,
             )
@@ -629,7 +406,7 @@ class PlatformInfo:
             wf_tcp = strategy.wf_tcp
             wf_udp = strategy.wf_udp
 
-            wrapper = self.zapret_dir / "mangopret-wrapper2.sh"
+            wrapper = self.zapret_dir / "mangopret-wrapper.sh"
             wrapper_content = (
                 "#!/bin/bash\n"
                 "set -e\n"
@@ -669,7 +446,7 @@ class PlatformInfo:
 
             unit = (
                 "[Unit]\n"
-                "Description=zapret2 DPI bypass (mangopret-managed)\n"
+                "Description=zapret DPI bypass (mangopret-managed)\n"
                 "After=network.target\n"
                 "\n"
                 "[Service]\n"
@@ -691,166 +468,8 @@ class PlatformInfo:
             )
             return True
         except Exception as exc:
-            logger.error("Failed to create zapret2 systemd service: %s", exc)
+            logger.error("Failed to create systemd service: %s", exc)
             return False
-
-    def _build_nfqws_opt(self, strategy) -> str:
-        parts: list[str] = []
-        for rule in strategy.rules:
-            args = rule.to_args()
-            resolved: list[str] = []
-            skip = False
-            for arg in args:
-                if arg.startswith("--"):
-                    keyval = arg.split("=", 1)
-                    if len(keyval) == 2:
-                        val = self._resolve_zapret_path(keyval[1])
-                        if (
-                            keyval[0] in ("--filter-tcp", "--filter-udp")
-                            and not val.strip()
-                        ):
-                            skip = True
-                            break
-                        resolved.append(f"{keyval[0]}={val}")
-                    else:
-                        resolved.append(keyval[0])
-                else:
-                    resolved.append(self._resolve_zapret_path(arg))
-            if not skip:
-                parts.append(" ".join(resolved))
-        return " --new\n".join(parts)
-
-    @staticmethod
-    def _resolve_zapret_path(value: str) -> str:
-        value = value.replace("{bin}", str(ZAPRET_DIR / "files" / "fake"))
-        value = value.replace("{lists}", str(ZAPRET_DIR / "ipset"))
-        value = value.replace("{game_filter_tcp}", "")
-        value = value.replace("{game_filter_udp}", "")
-        return value
-
-    def _sync_ipset_files(self, strategy) -> None:
-        zapret_ipset = self.zapret_dir / "ipset"
-        zapret_ipset.mkdir(parents=True, exist_ok=True)
-
-        copied_ipset: set[str] = set()
-        copied_bin: set[str] = set()
-
-        for rule in strategy.rules:
-            for vals in rule.params.values():
-                if vals is None:
-                    continue
-                if not isinstance(vals, list):
-                    vals = [vals]
-                for val in vals:
-                    val_s = str(val)
-                    src_path = val_s.replace("{lists}", str(self.lists_dir) + "/")
-                    src_path = src_path.replace("{bin}", str(self.bin_dir) + "/")
-                    src = Path(src_path)
-                    if not src.exists() or not src.is_file():
-                        continue
-
-                    if src.suffix == ".bin":
-                        dst_dir = self.zapret_dir / "files" / "fake"
-                        dst_dir.mkdir(parents=True, exist_ok=True)
-                        dst = dst_dir / src.name
-                        if src.name in copied_bin:
-                            continue
-                        if (
-                            not dst.exists()
-                            or src.stat().st_mtime > dst.stat().st_mtime
-                        ):
-                            shutil.copy2(str(src), str(dst))
-                        copied_bin.add(src.name)
-                    else:
-                        dst = zapret_ipset / src.name
-                        if src.name in copied_ipset:
-                            continue
-                        if (
-                            not dst.exists()
-                            or src.stat().st_mtime > dst.stat().st_mtime
-                        ):
-                            shutil.copy2(str(src), str(dst))
-                        copied_ipset.add(src.name)
-
-    def _install_zapret_service_unit(self, strategy_name: str = "") -> None:
-        official_service = Path("/etc/systemd/system/zapret.service")
-        official_link = self.zapret_dir / "init.d" / "systemd" / "zapret.service"
-
-        if official_service.exists():
-            pass
-        elif official_link.exists():
-            shutil.copy2(str(official_link), str(official_service))
-            logger.info("Installed official zapret.service")
-        else:
-            logger.warning(
-                "Official zapret.service not found — creating inline fallback"
-            )
-            fallback = (
-                "[Unit]\n"
-                "Description=zapret DPI bypass (mangopret-managed)\n"
-                "After=network.target\n"
-                "\n"
-                "[Service]\n"
-                "Type=oneshot\n"
-                "RemainAfterExit=yes\n"
-                "ExecStart=/opt/zapret/init.d/sysv/zapret start\n"
-                "ExecStop=/opt/zapret/init.d/sysv/zapret stop\n"
-                "ExecReload=/opt/zapret/init.d/sysv/zapret restart\n"
-                "\n"
-                "[Install]\n"
-                "WantedBy=multi-user.target\n"
-            )
-            official_service.write_text(fallback, encoding="utf-8")
-            logger.info("Created fallback zapret.service")
-
-        self._fix_init_script_perms()
-
-        try:
-            subprocess.run(
-                ["systemctl", "daemon-reload"],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=10,
-                check=False,
-            )
-        except Exception as exc:
-            logger.warning("daemon-reload failed: %s", exc)
-
-    def _fix_init_script_perms(self) -> None:
-        service_file = Path("/etc/systemd/system/zapret.service")
-        if service_file.exists():
-            try:
-                content = service_file.read_text(encoding="utf-8")
-                for match in re.finditer(
-                    r"^Exec(?:Start|Stop|Reload)\s*=\s*(.+)$", content, re.MULTILINE
-                ):
-                    cmd_path = (
-                        match.group(1).strip().split()[0]
-                        if match.group(1).strip()
-                        else ""
-                    )
-                    if (
-                        cmd_path
-                        and not cmd_path.startswith("-")
-                        and not cmd_path.startswith("/usr")
-                    ):
-                        script = Path(cmd_path)
-                        if script.exists() and not os.access(str(script), os.X_OK):
-                            script.chmod(script.stat().st_mode | 0o111)
-                            logger.info("Fixed execute permission on %s", script)
-            except Exception as exc:
-                logger.warning("Could not fix init script perms: %s", exc)
-
-        ipset_dir = self.zapret_dir / "ipset"
-        if ipset_dir.is_dir():
-            for sh_file in ipset_dir.glob("*.sh"):
-                if not os.access(str(sh_file), os.X_OK):
-                    try:
-                        sh_file.chmod(sh_file.stat().st_mode | 0o111)
-                    except Exception as exc:
-                        logger.debug("Failed to fix perms on %s: %s", sh_file, exc)
 
     def _get_config_value(self, key: str, default: str) -> str:
         try:
@@ -993,22 +612,16 @@ class PlatformInfo:
             return (False, str(exc))
 
     def service_install(
-        self, strategy=None, strategy_name: str = "", zapret_version: str = "1"
+        self, strategy=None, strategy_name: str = ""
     ) -> tuple[bool, str]:
         if self.is_windows:
-            return self._install_windows_service(
-                strategy, zapret_version=zapret_version
-            )
+            return self._install_windows_service(strategy)
         if strategy:
-            ok = self.create_systemd_service(
-                strategy, strategy_name, zapret_version=zapret_version
-            )
+            ok = self.create_systemd_service(strategy, strategy_name)
             return (ok, "" if ok else "Failed to create service")
         return (False, "No strategy provided")
 
-    def _install_windows_service(
-        self, strategy=None, zapret_version: str = "1"
-    ) -> tuple[bool, str]:
+    def _install_windows_service(self, strategy=None) -> tuple[bool, str]:
         if not self.is_windows:
             return (False, "Not Windows")
         try:
@@ -1019,7 +632,6 @@ class PlatformInfo:
                     str(self.bin_dir),
                     str(self.lists_dir),
                     True,
-                    zapret_version=zapret_version,
                 )
                 cmd_args = " ".join(str(x) for x in args[1:])
                 sc_cmd = f'"{bin_path}" {cmd_args}'
@@ -1057,7 +669,14 @@ class PlatformInfo:
             return ""
         try:
             r = subprocess.run(
-                ["journalctl", "-u", "zapret", "-n", str(lines), "--no-pager"],
+                [
+                    "journalctl",
+                    "-u",
+                    self._service_unit_name,
+                    "-n",
+                    str(lines),
+                    "--no-pager",
+                ],
                 capture_output=True,
                 text=True,
                 encoding="utf-8",

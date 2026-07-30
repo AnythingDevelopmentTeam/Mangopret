@@ -215,19 +215,17 @@ class MainWindow(QMainWindow):
 
         self._log(f"Creating service: {name}")
 
-        zapver = self.main_tab.get_zapret_version()
         auto_hostlist = (
             self.config.get("auto_hostlist", False) if self.config else False
         )
         ipcache = self.config.get("ipcache", False) if self.config else False
-        if zapver == "2" and not self.platform.is_windows:
+        if not self.platform.is_windows:
             self._log("Validating config with --dry-run...")
             args_for_dry = strategy.build_command(
                 str(self.platform.binary),
                 str(self.platform.bin_dir),
                 str(self.platform.lists_dir),
                 False,
-                zapret_version="2",
                 auto_hostlist=auto_hostlist,
                 ipcache=ipcache,
             )
@@ -239,9 +237,7 @@ class MainWindow(QMainWindow):
             self._log("Config valid.")
 
         if self.platform.is_linux:
-            ok = self.platform.create_systemd_service(
-                strategy, name, zapret_version=zapver
-            )
+            ok = self.platform.create_systemd_service(strategy, name)
             if not ok:
                 self._log("FAILED to create service")
                 self.status_bar.showMessage("Failed to create service")
@@ -258,9 +254,7 @@ class MainWindow(QMainWindow):
                 self._log(f"FAILED to start service: {err}")
                 self.status_bar.showMessage("Service start failed")
         else:
-            ok, err = self.platform.service_install(
-                strategy, name, zapret_version=zapver
-            )
+            ok, err = self.platform.service_install(strategy, name)
             if ok:
                 ok2, err2 = self.platform.service_start()
                 if ok2:

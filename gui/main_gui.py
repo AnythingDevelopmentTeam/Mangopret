@@ -90,7 +90,7 @@ def main() -> None:
     config = Config(str(config_dir))
     set_log_dir(str(config_dir))
 
-    platform = PlatformInfo(BASE_DIR, zapret_version=config.get("zapret_version", "1"))
+    platform = PlatformInfo(BASE_DIR)
     platform.ensure_dirs()
 
     theme = config.get("theme", "dark")
